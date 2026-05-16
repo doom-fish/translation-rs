@@ -2,10 +2,18 @@ use core::ffi::{c_char, CStr};
 use std::ffi::CString;
 
 use serde::de::DeserializeOwned;
+use serde::Deserialize;
 use serde::Serialize;
 
-use crate::error::TranslationError;
 use crate::ffi;
+use crate::translation_error::TranslationError;
+
+#[derive(Debug, Deserialize)]
+struct BridgeErrorPayload {
+    description: String,
+    #[serde(default, rename = "failureReason", alias = "failure_reason")]
+    failure_reason: Option<String>,
+}
 
 pub fn to_cstring(value: &str) -> Result<CString, TranslationError> {
     CString::new(value).map_err(|_| {
@@ -46,28 +54,16 @@ pub unsafe fn parse_json_ptr<T: DeserializeOwned>(
 }
 
 pub unsafe fn error_from_status(status: i32, err_msg: *mut c_char) -> TranslationError {
-    let message = take_optional_string(err_msg)
+    let payload = take_optional_string(err_msg)
         .unwrap_or_else(|| format!("Swift bridge call failed with status code {status}"));
-    match status {
-        ffi::status::INVALID_ARGUMENT => TranslationError::InvalidArgument(message),
-        ffi::status::UNAVAILABLE_ON_THIS_MACOS => TranslationError::UnavailableOnThisMacOS(message),
-        ffi::status::TIMED_OUT => TranslationError::TimedOut(message),
-        ffi::status::UNSUPPORTED_SOURCE_LANGUAGE => {
-            TranslationError::UnsupportedSourceLanguage(message)
-        }
-        ffi::status::UNSUPPORTED_TARGET_LANGUAGE => {
-            TranslationError::UnsupportedTargetLanguage(message)
-        }
-        ffi::status::UNSUPPORTED_LANGUAGE_PAIRING => {
-            TranslationError::UnsupportedLanguagePairing(message)
-        }
-        ffi::status::UNABLE_TO_IDENTIFY_LANGUAGE => {
-            TranslationError::UnableToIdentifyLanguage(message)
-        }
-        ffi::status::NOTHING_TO_TRANSLATE => TranslationError::NothingToTranslate(message),
-        ffi::status::ALREADY_CANCELLED => TranslationError::AlreadyCancelled(message),
-        ffi::status::NOT_INSTALLED => TranslationError::NotInstalled(message),
-        ffi::status::FRAMEWORK_ERROR => TranslationError::Framework(message),
-        _ => TranslationError::Unknown(message),
+
+    if let Ok(parsed) = serde_json::from_str::<BridgeErrorPayload>(&payload) {
+        return TranslationError::from_status_parts(
+            status,
+            parsed.description,
+            parsed.failure_reason,
+        );
     }
+
+    TranslationError::from_status_parts(status, payload, None)
 }

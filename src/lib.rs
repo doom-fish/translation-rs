@@ -11,22 +11,39 @@ pub mod availability;
 pub mod detection;
 pub mod error;
 pub mod ffi;
+pub mod language;
+pub mod language_availability;
+pub mod language_pair;
+pub mod language_recognition;
 mod private;
 pub mod session;
+pub mod translation_configuration;
+pub mod translation_error;
+pub mod translation_response;
+pub mod translation_session;
 
-pub use availability::{LanguageAvailability, LanguageAvailabilityStatus};
-pub use detection::detect_language;
-pub use error::TranslationError;
-pub use session::{
-    TranslationRequest, TranslationResponse, TranslationSession, TranslationSessionConfiguration,
+pub use language::Language;
+pub use language_availability::{LanguageAvailability, LanguageAvailabilityStatus};
+pub use language_pair::LanguagePair;
+pub use language_recognition::{detect_language, recognize_language};
+pub use translation_configuration::TranslationConfiguration;
+pub use translation_error::TranslationError;
+pub use translation_response::TranslationResponse;
+pub use translation_session::{
+    TranslationBatchResponse, TranslationRequest, TranslationSession,
+    TranslationSessionConfiguration,
 };
 
 pub mod prelude {
-    pub use crate::availability::{LanguageAvailability, LanguageAvailabilityStatus};
-    pub use crate::detection::detect_language;
-    pub use crate::error::TranslationError;
-    pub use crate::session::{
-        TranslationRequest, TranslationResponse, TranslationSession,
+    pub use crate::language::Language;
+    pub use crate::language_availability::{LanguageAvailability, LanguageAvailabilityStatus};
+    pub use crate::language_pair::LanguagePair;
+    pub use crate::language_recognition::{detect_language, recognize_language};
+    pub use crate::translation_configuration::TranslationConfiguration;
+    pub use crate::translation_error::TranslationError;
+    pub use crate::translation_response::TranslationResponse;
+    pub use crate::translation_session::{
+        TranslationBatchResponse, TranslationRequest, TranslationSession,
         TranslationSessionConfiguration,
     };
 }

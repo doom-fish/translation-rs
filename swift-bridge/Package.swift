@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "TranslationBridge",
     platforms: [
-        .macOS("15.0")
+        .macOS(.v14)
     ],
     products: [
         .library(

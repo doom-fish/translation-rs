@@ -1,6 +1,5 @@
+import Dispatch
 import Foundation
-import NaturalLanguage
-import Translation
 
 let TRL_OK: Int32 = 0
 let TRL_INVALID_ARGUMENT: Int32 = -1
@@ -34,12 +33,12 @@ func trlRetain(_ object: some AnyObject) -> UnsafeMutableRawPointer {
 
 @inline(__always)
 func trlBorrow<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, as type: T.Type = T.self) -> T {
-    Unmanaged<T>.fromOpaque(ptr).takeUnretainedValue()
+    Unmanaged<T>.fromOpaque(UnsafeRawPointer(ptr)).takeUnretainedValue()
 }
 
 @inline(__always)
 func trlRelease(_ ptr: UnsafeMutableRawPointer) {
-    Unmanaged<AnyObject>.fromOpaque(ptr).release()
+    Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(ptr)).release()
 }
 
 enum TRLBridgeError: Error, CustomStringConvertible {
@@ -72,41 +71,6 @@ enum TRLBridgeError: Error, CustomStringConvertible {
     }
 }
 
-func trlStatus(from error: Error) -> Int32 {
-    if let bridgeError = error as? TRLBridgeError {
-        return bridgeError.statusCode
-    }
-    if #available(macOS 15.0, *) {
-        if TranslationError.unsupportedSourceLanguage ~= error {
-            return TRL_UNSUPPORTED_SOURCE_LANGUAGE
-        }
-        if TranslationError.unsupportedTargetLanguage ~= error {
-            return TRL_UNSUPPORTED_TARGET_LANGUAGE
-        }
-        if TranslationError.unsupportedLanguagePairing ~= error {
-            return TRL_UNSUPPORTED_LANGUAGE_PAIRING
-        }
-        if TranslationError.unableToIdentifyLanguage ~= error {
-            return TRL_UNABLE_TO_IDENTIFY_LANGUAGE
-        }
-        if TranslationError.nothingToTranslate ~= error {
-            return TRL_NOTHING_TO_TRANSLATE
-        }
-        if #available(macOS 26.0, *) {
-            if TranslationError.alreadyCancelled ~= error {
-                return TRL_ALREADY_CANCELLED
-            }
-            if TranslationError.notInstalled ~= error {
-                return TRL_NOT_INSTALLED
-            }
-        }
-        if TranslationError.internalError ~= error {
-            return TRL_FRAMEWORK_ERROR
-        }
-    }
-    return TRL_FRAMEWORK_ERROR
-}
-
 final class TRLAsyncResultBox<T>: @unchecked Sendable {
     private let lock = NSLock()
     private var storedResult: Result<T, Error>?
@@ -126,21 +90,27 @@ final class TRLAsyncResultBox<T>: @unchecked Sendable {
 
 public func trl_block_on_async<T>(
     timeoutSeconds: TimeInterval = 60,
-    pollIntervalSeconds: TimeInterval = 0.01,
-    work: @escaping () async throws -> T
+    work: @escaping @Sendable () async throws -> T
 ) throws -> T {
+    let semaphore = DispatchSemaphore(value: 0)
     let box = TRLAsyncResultBox<T>()
-    Task {
+    let pollIntervalSeconds: TimeInterval = 0.01
+
+    Task { @MainActor in
         do {
             box.set(.success(try await work()))
         } catch {
             box.set(.failure(error))
         }
+        semaphore.signal()
     }
 
     let deadline = Date().addingTimeInterval(timeoutSeconds)
     while box.get() == nil && Date() < deadline {
-        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(pollIntervalSeconds))
+        RunLoop.current.run(
+            mode: .default,
+            before: Date().addingTimeInterval(pollIntervalSeconds)
+        )
     }
 
     guard let result = box.get() else {
@@ -176,25 +146,4 @@ func trlRequireString(_ cString: UnsafePointer<CChar>?, field: String) throws ->
         throw TRLBridgeError.invalidArgument("missing \(field)")
     }
     return String(cString: cString)
-}
-
-func trlLanguage(from identifier: String) -> Locale.Language {
-    Locale.Language(identifier: identifier)
-}
-
-func trlLanguageTag(from language: Locale.Language) -> String {
-    var parts: [String] = []
-    if let languageCode = language.languageCode?.identifier {
-        parts.append(languageCode)
-    }
-    if let script = language.script?.identifier {
-        parts.append(script)
-    }
-    if let region = language.region?.identifier {
-        parts.append(region)
-    }
-    if parts.isEmpty {
-        return language.maximalIdentifier
-    }
-    return parts.joined(separator: "-")
 }

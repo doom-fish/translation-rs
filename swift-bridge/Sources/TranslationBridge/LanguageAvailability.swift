@@ -1,11 +1,12 @@
 import Foundation
 import Translation
 
+@available(macOS 15.0, *)
 final class TRLLanguageAvailabilityBox: NSObject {
-    @available(macOS 15.0, *)
     let availability = LanguageAvailability()
 }
 
+@available(macOS 15.0, *)
 func trlLanguageAvailabilityBox(_ token: UnsafeMutableRawPointer?) throws -> TRLLanguageAvailabilityBox {
     guard let token else {
         throw TRLBridgeError.invalidArgument("missing language availability token")
@@ -31,7 +32,7 @@ func trlAvailabilityStatusRaw(_ status: LanguageAvailability.Status) -> Int32 {
 func trlStatusForText(
     availability: LanguageAvailability,
     text: String,
-    targetLanguage: Locale.Language
+    targetLanguage: Locale.Language?
 ) async throws -> LanguageAvailability.Status {
     do {
         return try await availability.status(for: text, to: targetLanguage)
@@ -83,12 +84,8 @@ public func trl_language_availability_supported_languages_json(
         }
         outLanguagesJson.pointee = trlCString(json)
         return TRL_OK
-    } catch let error as TRLBridgeError {
-        outErrorMessage?.pointee = trlCString(error.description)
-        return error.statusCode
     } catch {
-        outErrorMessage?.pointee = trlCString(error.localizedDescription)
-        return trlStatus(from: error)
+        return trlWriteError(outErrorMessage, error)
     }
 }
 
@@ -107,21 +104,19 @@ public func trl_language_availability_status_from_to(
             )
         }
         let box = try trlLanguageAvailabilityBox(token)
-        let sourceLanguage = trlLanguage(from: try trlRequireString(sourceLanguage, field: "source language"))
-        let targetLanguage = trlLanguage(from: try trlRequireString(targetLanguage, field: "target language"))
+        let source = try trlRequireString(sourceLanguage, field: "source language")
+        let target = targetLanguage.map(String.init(cString:))
         let status = try trl_block_on_async {
-            await trlAvailabilityStatusRaw(
-                box.availability.status(from: sourceLanguage, to: targetLanguage)
+            let availabilityStatus = await box.availability.status(
+                from: trlLanguage(from: source),
+                to: target.map { trlLanguage(from: $0) }
             )
+            return trlAvailabilityStatusRaw(availabilityStatus)
         }
         outStatus.pointee = status
         return TRL_OK
-    } catch let error as TRLBridgeError {
-        outErrorMessage?.pointee = trlCString(error.description)
-        return error.statusCode
     } catch {
-        outErrorMessage?.pointee = trlCString(error.localizedDescription)
-        return trlStatus(from: error)
+        return trlWriteError(outErrorMessage, error)
     }
 }
 
@@ -141,23 +136,18 @@ public func trl_language_availability_status_for_text(
         }
         let box = try trlLanguageAvailabilityBox(token)
         let text = try trlRequireString(text, field: "text")
-        let targetLanguage = trlLanguage(from: try trlRequireString(targetLanguage, field: "target language"))
+        let target = targetLanguage.map(String.init(cString:))
         let status = try trl_block_on_async {
-            try await trlAvailabilityStatusRaw(
-                trlStatusForText(
-                    availability: box.availability,
-                    text: text,
-                    targetLanguage: targetLanguage
-                )
+            let availabilityStatus = try await trlStatusForText(
+                availability: box.availability,
+                text: text,
+                targetLanguage: target.map { trlLanguage(from: $0) }
             )
+            return trlAvailabilityStatusRaw(availabilityStatus)
         }
         outStatus.pointee = status
         return TRL_OK
-    } catch let error as TRLBridgeError {
-        outErrorMessage?.pointee = trlCString(error.description)
-        return error.statusCode
     } catch {
-        outErrorMessage?.pointee = trlCString(error.localizedDescription)
-        return trlStatus(from: error)
+        return trlWriteError(outErrorMessage, error)
     }
 }

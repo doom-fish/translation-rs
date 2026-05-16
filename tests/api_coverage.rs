@@ -1,21 +1,26 @@
 use translation::prelude::*;
+use translation::{availability, detection, error, session};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let availability = LanguageAvailability::new()?;
-    let supported_languages = availability.supported_languages()?;
-    assert!(!supported_languages.is_empty());
+fn main() -> Result<(), TranslationError> {
+    prelude_and_compatibility_modules_expose_surface()
+}
 
-    let _ = availability.status_for_pair("en", "es")?;
-    let _ = availability.status_for_text("hello world", "es")?;
-    let detected_language = detect_language("hello world")?;
+fn prelude_and_compatibility_modules_expose_surface() -> Result<(), TranslationError> {
+    let _language = Language::new("en");
+    let _pair = LanguagePair::between("en", "es");
+    let _configuration = TranslationConfiguration::new()
+        .with_source("en")
+        .with_target("es");
+    let _session_configuration = TranslationSessionConfiguration::new("en", "es");
+    let _request = TranslationRequest::new("hello world");
+    let _response = TranslationResponse::new("en", "es", "hello world", "hola mundo");
+    let _: LanguageAvailabilityStatus = LanguageAvailabilityStatus::Supported;
 
-    let configuration = TranslationSessionConfiguration::new("en", "es");
-    let session = TranslationSession::new(configuration.clone())?;
-    assert_eq!(session.configuration(), &configuration);
+    let _ = std::mem::size_of::<availability::LanguageAvailabilityStatus>();
+    let _ = std::mem::size_of::<error::TranslationError>();
+    let _ = std::mem::size_of::<session::TranslationRequest>();
 
-    let request = TranslationRequest::new("hello world").with_client_identifier("hello");
-    assert_eq!(request.source_text(), "hello world");
-    assert_eq!(request.client_identifier(), Some("hello"));
-    assert!(detected_language.is_some());
+    let detected = detection::detect_language("hello world")?;
+    assert!(detected.is_some_and(|language| language.starts_with("en")));
     Ok(())
 }

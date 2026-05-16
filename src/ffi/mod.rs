@@ -5,6 +5,18 @@ use core::ffi::{c_char, c_void};
 extern "C" {
     pub fn trl_string_free(s: *mut c_char);
 
+    pub fn trl_language_canonicalize(
+        identifier: *const c_char,
+        out_language: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn trl_language_pair_canonicalize_json(
+        source_language: *const c_char,
+        target_language: *const c_char,
+        out_pair_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+
     pub fn trl_language_availability_new() -> *mut c_void;
     pub fn trl_language_availability_release(token: *mut c_void);
     pub fn trl_language_availability_supported_languages_json(
@@ -26,6 +38,7 @@ extern "C" {
         out_status: *mut i32,
         out_error_message: *mut *mut c_char,
     ) -> i32;
+
     pub fn trl_detect_language(
         text: *const c_char,
         out_language: *mut *mut c_char,
@@ -34,9 +47,21 @@ extern "C" {
 
     pub fn trl_session_new(
         configuration_json: *const c_char,
+        out_token: *mut *mut c_void,
         out_error_message: *mut *mut c_char,
-    ) -> *mut c_void;
+    ) -> i32;
     pub fn trl_session_release(token: *mut c_void);
+    pub fn trl_session_can_request_downloads(
+        token: *mut c_void,
+        out_value: *mut i32,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn trl_session_is_ready(
+        token: *mut c_void,
+        out_value: *mut i32,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn trl_session_cancel(token: *mut c_void, out_error_message: *mut *mut c_char) -> i32;
     pub fn trl_session_prepare_translation(
         token: *mut c_void,
         out_error_message: *mut *mut c_char,
@@ -51,6 +76,18 @@ extern "C" {
         token: *mut c_void,
         requests_json: *const c_char,
         out_responses_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn trl_session_translate_batch_stream_json(
+        token: *mut c_void,
+        requests_json: *const c_char,
+        out_batch_token: *mut *mut c_void,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn trl_batch_response_release(token: *mut c_void);
+    pub fn trl_batch_response_next_json(
+        token: *mut c_void,
+        out_response_json: *mut *mut c_char,
         out_error_message: *mut *mut c_char,
     ) -> i32;
 }

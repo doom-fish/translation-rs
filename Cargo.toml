@@ -1,12 +1,12 @@
 [package]
 name = "translation-rs"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 autotests = false
 license = "MIT OR Apache-2.0"
 homepage = "https://github.com/doom-fish/translation-rs"
 repository = "https://github.com/doom-fish/translation-rs"
-description = "Safe Rust bindings for Translation.framework — on-device translation and language availability on macOS"
+description = "Safe Rust bindings for Translation.framework — language availability, session workflows, and language recognition on macOS"
 authors = ["Per Johansson <per@doom.fish>"]
 keywords = ["translation", "ai", "macos", "nlp", "apple"]
 categories = ["api-bindings", "os::macos-apis", "text-processing"]
@@ -22,8 +22,9 @@ include = [
     "build.rs",
     "Cargo.toml",
     "README.md",
-    "LICENSE-*",
     "CHANGELOG.md",
+    "COVERAGE.md",
+    "LICENSE-*",
 ]
 
 [lints.rust]
@@ -50,12 +51,49 @@ rustdoc-args = ["--cfg", "docsrs"]
 [badges]
 maintenance = { status = "actively-developed" }
 
-[[example]]
-name = "02_framework_smoke"
-
 [[test]]
 name = "api_coverage"
 path = "tests/api_coverage.rs"
+harness = false
+
+[[test]]
+name = "language_tests"
+path = "tests/language_tests.rs"
+harness = false
+
+[[test]]
+name = "language_pair_tests"
+path = "tests/language_pair_tests.rs"
+harness = false
+
+[[test]]
+name = "translation_configuration_tests"
+path = "tests/translation_configuration_tests.rs"
+harness = false
+
+[[test]]
+name = "translation_response_tests"
+path = "tests/translation_response_tests.rs"
+harness = false
+
+[[test]]
+name = "language_recognition_tests"
+path = "tests/language_recognition_tests.rs"
+harness = false
+
+[[test]]
+name = "language_availability_tests"
+path = "tests/language_availability_tests.rs"
+harness = false
+
+[[test]]
+name = "translation_error_tests"
+path = "tests/translation_error_tests.rs"
+harness = false
+
+[[test]]
+name = "translation_session_tests"
+path = "tests/translation_session_tests.rs"
 harness = false
 
 [profile.release]
