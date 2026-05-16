@@ -1,0 +1,3 @@
+#ifndef TRANSLATION_BRIDGE_H
+#define TRANSLATION_BRIDGE_H
+#endif
