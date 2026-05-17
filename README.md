@@ -2,7 +2,7 @@
 
 Safe Rust bindings for Apple's `Translation.framework` on macOS, plus typed language helpers for canonical language identifiers, language pairs, translation configuration state, translation responses, translation errors, and NaturalLanguage-backed language recognition.
 
-> **Status:** v0.2.0 covers all public `Translation.framework` symbols in the current macOS SDK and organizes the crate into eight logical areas: `TranslationSession`, `LanguageAvailability`, `TranslationConfiguration`, `TranslationResponse`, `TranslationError`, `Language`, `LanguagePair`, and `LanguageRecognition`.
+> **Status:** v0.3.0 covers all public `Translation.framework` symbols in the current macOS SDK and adds a Tier-1 `async_api` module for Future-based translation and availability workflows.
 
 ## Quick start
 
@@ -52,6 +52,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 - `LanguageAvailability` requires macOS 15+.
 - Manual `TranslationSession` construction is currently available on macOS 26+ through `TranslationSession(installedSource:target:)`; the crate surfaces those APIs and returns structured `TranslationError` values on older systems.
 
+## Async API
+
+Enable the `async` feature to use executor-agnostic futures backed by Swift `Task` thunks and `doom-fish-utils` completion helpers:
+
+```toml
+translation-rs = { version = "0.3", features = ["async"] }
+```
+
+The async surface currently includes:
+
+- `AsyncTranslationSession::translate`
+- `AsyncTranslationSession::translations`
+- `AsyncTranslationSession::prepare_translation`
+- `AsyncLanguageAvailability::status`
+- `AsyncLanguageAvailability::supported_languages`
+
+See `examples/10_async_translate.rs` and `examples/11_async_availability.rs` for end-to-end usage with `pollster::block_on`.
+
 ## Examples
 
 The crate ships numbered examples for every logical area plus an end-to-end framework smoke test:
@@ -65,11 +83,22 @@ The crate ships numbered examples for every logical area plus an end-to-end fram
 - `07_language_recognition_smoke`
 - `08_translation_session_smoke`
 - `09_framework_smoke`
+- `10_async_translate` *(requires `--features async`)*
+- `11_async_availability` *(requires `--features async`)*
 
-Run them all with:
+Run the sync examples with:
 
 ```bash
-for ex in examples/*.rs; do cargo run --example "$(basename "$ex" .rs)"; done
+for ex in 01_language_roundtrip 02_language_pair_roundtrip 03_translation_error_messages 04_language_availability_smoke 05_translation_configuration_lifecycle 06_translation_response_roundtrip 07_language_recognition_smoke 08_translation_session_smoke 09_framework_smoke; do
+  cargo run --example "$ex"
+done
+```
+
+Run the async examples with:
+
+```bash
+cargo run --features async --example 10_async_translate
+cargo run --features async --example 11_async_availability
 ```
 
 ## Coverage

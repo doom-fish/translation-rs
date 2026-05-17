@@ -1,6 +1,6 @@
 [package]
 name = "translation-rs"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 autotests = false
 license = "MIT OR Apache-2.0"
@@ -38,9 +38,17 @@ cargo = { level = "warn", priority = -1 }
 name = "translation"
 crate-type = ["lib"]
 
+[features]
+default = []
+async = ["dep:doom-fish-utils"]
+
 [dependencies]
+doom-fish-utils = { path = "../doom-fish-utils", version = "0.1", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+[dev-dependencies]
+pollster = "0.3"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -95,6 +103,20 @@ harness = false
 name = "translation_session_tests"
 path = "tests/translation_session_tests.rs"
 harness = false
+
+[[test]]
+name = "async_api_tests"
+path = "tests/async_api_tests.rs"
+harness = false
+required-features = ["async"]
+
+[[example]]
+name = "10_async_translate"
+required-features = ["async"]
+
+[[example]]
+name = "11_async_availability"
+required-features = ["async"]
 
 [profile.release]
 debug = "full"

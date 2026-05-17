@@ -231,6 +231,11 @@ impl TranslationSession {
         )
     }
 
+    #[cfg(feature = "async")]
+    pub(crate) const fn raw_token(&self) -> *mut c_void {
+        self.token
+    }
+
     #[must_use]
     pub fn configuration(&self) -> &TranslationSessionConfiguration {
         &self.configuration

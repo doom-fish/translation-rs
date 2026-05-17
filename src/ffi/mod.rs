@@ -38,6 +38,18 @@ extern "C" {
         out_status: *mut i32,
         out_error_message: *mut *mut c_char,
     ) -> i32;
+    pub fn trl_language_availability_status_async(
+        token: *mut c_void,
+        source_language: *const c_char,
+        target_language: *const c_char,
+        ctx: *mut c_void,
+        cb: extern "C" fn(*const c_void, *const c_char, *mut c_void),
+    );
+    pub fn trl_language_availability_supported_languages_async(
+        token: *mut c_void,
+        cb: extern "C" fn(*const c_void, *const c_char, *mut c_void),
+        ctx: *mut c_void,
+    );
 
     pub fn trl_detect_language(
         text: *const c_char,
@@ -66,6 +78,23 @@ extern "C" {
         token: *mut c_void,
         out_error_message: *mut *mut c_char,
     ) -> i32;
+    pub fn trl_session_translate_async(
+        token: *mut c_void,
+        text: *const c_char,
+        cb: extern "C" fn(*const c_void, *const c_char, *mut c_void),
+        ctx: *mut c_void,
+    );
+    pub fn trl_session_translations_async(
+        token: *mut c_void,
+        requests_json: *const c_char,
+        cb: extern "C" fn(*const c_void, *const c_char, *mut c_void),
+        ctx: *mut c_void,
+    );
+    pub fn trl_session_prepare_translation_async(
+        token: *mut c_void,
+        cb: extern "C" fn(*const c_void, *const c_char, *mut c_void),
+        ctx: *mut c_void,
+    );
     pub fn trl_session_translate_text_json(
         token: *mut c_void,
         text: *const c_char,

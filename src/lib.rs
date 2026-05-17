@@ -21,6 +21,8 @@ pub mod translation_configuration;
 pub mod translation_error;
 pub mod translation_response;
 pub mod translation_session;
+#[cfg(feature = "async")]
+pub mod async_api;
 
 pub use language::Language;
 pub use language_availability::{LanguageAvailability, LanguageAvailabilityStatus};
@@ -35,6 +37,8 @@ pub use translation_session::{
 };
 
 pub mod prelude {
+    #[cfg(feature = "async")]
+    pub use crate::async_api::{AsyncLanguageAvailability, AsyncTranslationSession};
     pub use crate::language::Language;
     pub use crate::language_availability::{LanguageAvailability, LanguageAvailabilityStatus};
     pub use crate::language_pair::LanguagePair;

@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.0] - 2026-05-17
+
+### Added
+
+- Added Tier-1 `async_api` wrappers for `TranslationSession` and `LanguageAvailability` using `doom-fish-utils` completion futures.
+- Added non-blocking Swift `@_cdecl` async thunks for single translation, batch translation, preparation, availability status, and supported-language discovery.
+- Added async examples plus `tests/async_api_tests.rs` behind the `async` Cargo feature.
+
+### Changed
+
+- Added an `async` Cargo feature that pulls in `doom-fish-utils` only when async wrappers are enabled.
+- Bumped the crate to v0.3.0 and documented the new async surface area in the README.
+
 ## [0.2.0] - 2026-05-16
 
 ### Added

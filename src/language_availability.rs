@@ -51,6 +51,11 @@ impl LanguageAvailability {
         Ok(Self { token })
     }
 
+    #[cfg(feature = "async")]
+    pub(crate) const fn raw_token(&self) -> *mut c_void {
+        self.token
+    }
+
     pub fn supported_languages(&self) -> Result<Vec<String>, TranslationError> {
         self.supported_language_objects()
             .map(|languages| languages.into_iter().map(String::from).collect())
