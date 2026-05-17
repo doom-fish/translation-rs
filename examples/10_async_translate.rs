@@ -58,9 +58,7 @@ where
 
     let (tx, rx) = sync_channel(1);
     std::thread::scope(|scope| {
-        scope.spawn(move || {
-            if tx.send(pollster::block_on(future)).is_err() {}
-        });
+        scope.spawn(move || if tx.send(pollster::block_on(future)).is_err() {});
 
         loop {
             if let Ok(result) = rx.try_recv() {

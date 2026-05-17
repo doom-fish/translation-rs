@@ -7,6 +7,8 @@
     clippy::module_name_repetitions
 )]
 
+#[cfg(feature = "async")]
+pub mod async_api;
 pub mod availability;
 pub mod detection;
 pub mod error;
@@ -21,8 +23,6 @@ pub mod translation_configuration;
 pub mod translation_error;
 pub mod translation_response;
 pub mod translation_session;
-#[cfg(feature = "async")]
-pub mod async_api;
 
 pub use language::Language;
 pub use language_availability::{LanguageAvailability, LanguageAvailabilityStatus};

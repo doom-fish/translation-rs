@@ -63,11 +63,7 @@ extern "C" fn translate_cb(result: *const c_void, error: *const c_char, ctx: *mu
     complete_json_callback(result, error, ctx, "translation response");
 }
 
-extern "C" fn translations_batch_cb(
-    result: *const c_void,
-    error: *const c_char,
-    ctx: *mut c_void,
-) {
+extern "C" fn translations_batch_cb(result: *const c_void, error: *const c_char, ctx: *mut c_void) {
     complete_json_callback(result, error, ctx, "translation batch responses");
 }
 
@@ -326,7 +322,9 @@ impl<'a> AsyncLanguageAvailability<'a> {
             ffi::trl_language_availability_status_async(
                 self.availability.raw_token(),
                 source_c.as_ptr(),
-                target_c.as_ref().map_or(std::ptr::null(), |value| value.as_ptr()),
+                target_c
+                    .as_ref()
+                    .map_or(std::ptr::null(), |value| value.as_ptr()),
                 ctx,
                 availability_status_cb,
             );

@@ -37,7 +37,10 @@ fn test_supported_languages_async() {
     let result = block_on_with_main_run_loop(async_availability.supported_languages());
     match result {
         Ok(languages) => {
-            assert!(!languages.is_empty(), "expected non-empty supported languages");
+            assert!(
+                !languages.is_empty(),
+                "expected non-empty supported languages"
+            );
             println!(
                 "PASS test_supported_languages_async: {} languages",
                 languages.len()
@@ -173,9 +176,7 @@ where
 
     let (tx, rx) = sync_channel(1);
     std::thread::scope(|scope| {
-        scope.spawn(move || {
-            if tx.send(pollster::block_on(future)).is_err() {}
-        });
+        scope.spawn(move || if tx.send(pollster::block_on(future)).is_err() {});
 
         loop {
             if let Ok(result) = rx.try_recv() {

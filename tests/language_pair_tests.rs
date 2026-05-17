@@ -7,7 +7,10 @@ fn main() -> Result<(), TranslationError> {
 fn canonicalizes_language_pairs() -> Result<(), TranslationError> {
     let pair = LanguagePair::between("en", "es").canonicalized()?;
     assert!(pair.source().identifier().starts_with("en"));
-    assert!(pair.target().map(Language::identifier).is_some_and(|tag| tag.starts_with("es")));
+    assert!(pair
+        .target()
+        .map(Language::identifier)
+        .is_some_and(|tag| tag.starts_with("es")));
 
     let without_target = LanguagePair::new("en", None).canonicalized()?;
     assert!(without_target.source().identifier().starts_with("en"));
