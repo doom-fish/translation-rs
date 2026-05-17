@@ -21,6 +21,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use doom_fish_utils::completion::{error_from_cstr, AsyncCompletion, AsyncCompletionFuture};
+use doom_fish_utils::panic_safe::catch_user_panic;
 use serde::de::DeserializeOwned;
 
 use crate::ffi;
@@ -41,6 +42,9 @@ fn complete_json_callback(
     ctx: *mut c_void,
     context: &str,
 ) {
+    // SAFETY: This callback is called from the Swift bridge with valid pointers.
+    // The error pointer and result pointer come from Swift and are either valid
+    // C strings / pointers or null. We validate nullness before dereferencing.
     if !error.is_null() {
         let msg = unsafe { error_from_cstr(error) };
         unsafe { AsyncCompletion::<String>::complete_err(ctx, msg) };
@@ -60,11 +64,15 @@ fn complete_json_callback(
 }
 
 extern "C" fn translate_cb(result: *const c_void, error: *const c_char, ctx: *mut c_void) {
-    complete_json_callback(result, error, ctx, "translation response");
+    catch_user_panic("translate_cb", || {
+        complete_json_callback(result, error, ctx, "translation response");
+    });
 }
 
 extern "C" fn translations_batch_cb(result: *const c_void, error: *const c_char, ctx: *mut c_void) {
-    complete_json_callback(result, error, ctx, "translation batch responses");
+    catch_user_panic("translations_batch_cb", || {
+        complete_json_callback(result, error, ctx, "translation batch responses");
+    });
 }
 
 extern "C" fn prepare_translation_cb(
@@ -72,12 +80,14 @@ extern "C" fn prepare_translation_cb(
     error: *const c_char,
     ctx: *mut c_void,
 ) {
-    if error.is_null() {
-        unsafe { AsyncCompletion::<()>::complete_ok(ctx, ()) };
-    } else {
-        let msg = unsafe { error_from_cstr(error) };
-        unsafe { AsyncCompletion::<()>::complete_err(ctx, msg) };
-    }
+    catch_user_panic("prepare_translation_cb", || {
+        if error.is_null() {
+            unsafe { AsyncCompletion::<()>::complete_ok(ctx, ()) };
+        } else {
+            let msg = unsafe { error_from_cstr(error) };
+            unsafe { AsyncCompletion::<()>::complete_err(ctx, msg) };
+        }
+    });
 }
 
 extern "C" fn availability_status_cb(
@@ -85,30 +95,32 @@ extern "C" fn availability_status_cb(
     error: *const c_char,
     ctx: *mut c_void,
 ) {
-    if !error.is_null() {
-        let msg = unsafe { error_from_cstr(error) };
-        unsafe { AsyncCompletion::<i32>::complete_err(ctx, msg) };
-    } else if !result.is_null() {
-        let raw_status = (result as usize)
-            .checked_sub(1)
-            .and_then(|value| i32::try_from(value).ok());
-        match raw_status {
-            Some(status) => unsafe { AsyncCompletion::complete_ok(ctx, status) },
-            None => unsafe {
+    catch_user_panic("availability_status_cb", || {
+        if !error.is_null() {
+            let msg = unsafe { error_from_cstr(error) };
+            unsafe { AsyncCompletion::<i32>::complete_err(ctx, msg) };
+        } else if !result.is_null() {
+            let raw_status = (result as usize)
+                .checked_sub(1)
+                .and_then(|value| i32::try_from(value).ok());
+            match raw_status {
+                Some(status) => unsafe { AsyncCompletion::complete_ok(ctx, status) },
+                None => unsafe {
+                    AsyncCompletion::<i32>::complete_err(
+                        ctx,
+                        "invalid language availability status result".to_owned(),
+                    );
+                },
+            }
+        } else {
+            unsafe {
                 AsyncCompletion::<i32>::complete_err(
                     ctx,
-                    "invalid language availability status result".to_owned(),
+                    "null result pointer for language availability status".to_owned(),
                 );
-            },
+            };
         }
-    } else {
-        unsafe {
-            AsyncCompletion::<i32>::complete_err(
-                ctx,
-                "null result pointer for language availability status".to_owned(),
-            );
-        };
-    }
+    });
 }
 
 extern "C" fn supported_languages_cb(
@@ -116,7 +128,9 @@ extern "C" fn supported_languages_cb(
     error: *const c_char,
     ctx: *mut c_void,
 ) {
-    complete_json_callback(result, error, ctx, "supported languages");
+    catch_user_panic("supported_languages_cb", || {
+        complete_json_callback(result, error, ctx, "supported languages");
+    });
 }
 
 /// Future returned by [`AsyncTranslationSession::translate`].
@@ -256,6 +270,9 @@ impl<'a> AsyncTranslationSession<'a> {
     pub fn translate(&self, text: &str) -> Result<TranslateResponseFuture, TranslationError> {
         let text_c = crate::private::to_cstring(text)?;
         let (future, ctx) = AsyncCompletion::create();
+        // SAFETY: FFI function is called with valid session token, C string pointer,
+        // valid callback pointer, and valid context pointer from AsyncCompletion::create().
+        // The callback is panic-safe and will properly complete the future.
         unsafe {
             ffi::trl_session_translate_async(
                 self.session.raw_token(),
@@ -273,6 +290,9 @@ impl<'a> AsyncTranslationSession<'a> {
     ) -> Result<TranslationsBatchFuture, TranslationError> {
         let requests_json = crate::private::json_cstring(requests)?;
         let (future, ctx) = AsyncCompletion::create();
+        // SAFETY: FFI function is called with valid session token, C string pointer,
+        // valid callback pointer, and valid context pointer from AsyncCompletion::create().
+        // The callback is panic-safe and will properly complete the future.
         unsafe {
             ffi::trl_session_translations_async(
                 self.session.raw_token(),
@@ -286,6 +306,9 @@ impl<'a> AsyncTranslationSession<'a> {
 
     pub fn prepare_translation(&self) -> PrepareTranslationFuture {
         let (future, ctx) = AsyncCompletion::create();
+        // SAFETY: FFI function is called with valid session token, valid callback pointer,
+        // and valid context pointer from AsyncCompletion::create().
+        // The callback is panic-safe and will properly complete the future.
         unsafe {
             ffi::trl_session_prepare_translation_async(
                 self.session.raw_token(),
@@ -318,6 +341,10 @@ impl<'a> AsyncLanguageAvailability<'a> {
             .map(|language| crate::private::to_cstring(language.identifier()))
             .transpose()?;
         let (future, ctx) = AsyncCompletion::create();
+        // SAFETY: FFI function is called with valid availability token, C string pointers
+        // (source_c and target_c are owned CStrings, target_c is optionally null),
+        // valid context pointer from AsyncCompletion::create(), and valid callback pointer.
+        // The callback is panic-safe and will properly complete the future.
         unsafe {
             ffi::trl_language_availability_status_async(
                 self.availability.raw_token(),
@@ -334,6 +361,9 @@ impl<'a> AsyncLanguageAvailability<'a> {
 
     pub fn supported_languages(&self) -> SupportedLanguagesFuture {
         let (future, ctx) = AsyncCompletion::create();
+        // SAFETY: FFI function is called with valid availability token, valid callback pointer,
+        // and valid context pointer from AsyncCompletion::create().
+        // The callback is panic-safe and will properly complete the future.
         unsafe {
             ffi::trl_language_availability_supported_languages_async(
                 self.availability.raw_token(),

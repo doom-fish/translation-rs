@@ -37,12 +37,28 @@ pub unsafe fn take_optional_string(ptr: *mut c_char) -> Option<String> {
     Some(string)
 }
 
+/// Convert a nullable C string pointer from the Swift bridge into a Rust String.
+///
+/// # Safety
+///
+/// The caller must ensure that:
+/// - `ptr` is either null or points to a valid, null-terminated UTF-8 C string
+/// - `ptr` was allocated by the Swift bridge and must be freed via `trl_string_free`
+/// - `ptr` is not accessed after this function returns (the string is moved to a new Rust String)
 pub unsafe fn string_from_ptr(ptr: *mut c_char, context: &str) -> Result<String, TranslationError> {
     take_optional_string(ptr).ok_or_else(|| {
         TranslationError::Unknown(format!("missing {context} response from Swift bridge"))
     })
 }
 
+/// Parse a JSON string from a C pointer returned by the Swift bridge.
+///
+/// # Safety
+///
+/// The caller must ensure that:
+/// - `ptr` is either null or points to a valid, null-terminated UTF-8 C string containing valid JSON
+/// - `ptr` was allocated by the Swift bridge and must be freed via `trl_string_free`
+/// - `ptr` is not accessed after this function returns
 pub unsafe fn parse_json_ptr<T: DeserializeOwned>(
     ptr: *mut c_char,
     context: &str,
@@ -53,6 +69,14 @@ pub unsafe fn parse_json_ptr<T: DeserializeOwned>(
     })
 }
 
+/// Convert a Swift bridge status code into a TranslationError.
+///
+/// # Safety
+///
+/// The caller must ensure that:
+/// - `err_msg` is either null or points to a valid, null-terminated UTF-8 C string
+/// - `err_msg` was allocated by the Swift bridge and must be freed via `trl_string_free`
+/// - `err_msg` is not accessed after this function returns
 pub unsafe fn error_from_status(status: i32, err_msg: *mut c_char) -> TranslationError {
     let payload = take_optional_string(err_msg)
         .unwrap_or_else(|| format!("Swift bridge call failed with status code {status}"));

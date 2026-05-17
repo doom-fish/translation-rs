@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.1] - 2026-05-18
+
+### Fixed
+
+- Added panic-safe wrappers (`catch_user_panic`) to all FFI callbacks to prevent panics from unwinding across the C ABI boundary (undefined behavior).
+- Added `SAFETY` comments to all unsafe blocks throughout the crate for clarity on memory safety invariants.
+- Added comprehensive documentation to public unsafe functions in `private.rs` explaining their safety requirements.
+- Updated `doom-fish-utils` version range to `>=0.1, <0.3` for better compatibility with future minor releases.
+
 ## [0.3.0] - 2026-05-17
 
 ### Added
