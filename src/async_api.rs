@@ -263,10 +263,12 @@ pub struct AsyncTranslationSession<'a> {
 }
 
 impl<'a> AsyncTranslationSession<'a> {
+    /// Wraps a `TranslationSession` for async Translation.framework calls.
     pub const fn new(session: &'a TranslationSession) -> Self {
         Self { session }
     }
 
+    /// Starts `TranslationSession.translate(_:)` as a future.
     pub fn translate(&self, text: &str) -> Result<TranslateResponseFuture, TranslationError> {
         let text_c = crate::private::to_cstring(text)?;
         let (future, ctx) = AsyncCompletion::create();
@@ -284,6 +286,7 @@ impl<'a> AsyncTranslationSession<'a> {
         Ok(TranslateResponseFuture { inner: future })
     }
 
+    /// Starts `TranslationSession.translations(from:)` as a future.
     pub fn translations(
         &self,
         requests: &[TranslationRequest],
@@ -304,6 +307,7 @@ impl<'a> AsyncTranslationSession<'a> {
         Ok(TranslationsBatchFuture { inner: future })
     }
 
+    /// Starts `TranslationSession.prepareTranslation()` as a future.
     pub fn prepare_translation(&self) -> PrepareTranslationFuture {
         let (future, ctx) = AsyncCompletion::create();
         // SAFETY: FFI function is called with valid session token, valid callback pointer,
@@ -327,10 +331,12 @@ pub struct AsyncLanguageAvailability<'a> {
 }
 
 impl<'a> AsyncLanguageAvailability<'a> {
+    /// Wraps a `LanguageAvailability` for async Translation.framework calls.
     pub const fn new(availability: &'a LanguageAvailability) -> Self {
         Self { availability }
     }
 
+    /// Starts `LanguageAvailability.status(from:to:)` as a future.
     pub fn status(
         &self,
         source: &Language,
@@ -359,6 +365,7 @@ impl<'a> AsyncLanguageAvailability<'a> {
         Ok(AvailabilityStatusFuture { inner: future })
     }
 
+    /// Starts `LanguageAvailability.supportedLanguages` as a future.
     pub fn supported_languages(&self) -> SupportedLanguagesFuture {
         let (future, ctx) = AsyncCompletion::create();
         // SAFETY: FFI function is called with valid availability token, valid callback pointer,

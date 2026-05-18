@@ -10,6 +10,7 @@ use crate::translation_error::TranslationError;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(transparent)]
+/// Wraps a Translation.framework language identifier.
 pub struct Language {
     identifier: String,
 }
@@ -25,6 +26,7 @@ impl<'de> Deserialize<'de> for Language {
 
 impl Language {
     #[must_use]
+    /// Creates a language wrapper from a BCP-47 identifier.
     pub fn new(identifier: impl Into<String>) -> Self {
         Self {
             identifier: identifier.into(),
@@ -32,10 +34,12 @@ impl Language {
     }
 
     #[must_use]
+    /// Returns the wrapped language identifier.
     pub fn identifier(&self) -> &str {
         &self.identifier
     }
 
+    /// Returns the Translation.framework-canonicalized language identifier.
     pub fn canonicalized(&self) -> Result<Self, TranslationError> {
         let identifier = to_cstring(self.identifier())?;
         let mut canonicalized: *mut c_char = ptr::null_mut();

@@ -9,6 +9,7 @@ use crate::private::{error_from_status, parse_json_ptr, to_cstring};
 use crate::translation_error::TranslationError;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
+/// Represents a source/target language pair used by Translation.framework.
 pub struct LanguagePair {
     source: Language,
     target: Option<Language>,
@@ -32,6 +33,7 @@ impl<'de> Deserialize<'de> for LanguagePair {
 
 impl LanguagePair {
     #[must_use]
+    /// Creates a language pair with an optional target language.
     pub fn new(source: impl Into<Language>, target: Option<Language>) -> Self {
         Self {
             source: source.into(),
@@ -40,20 +42,24 @@ impl LanguagePair {
     }
 
     #[must_use]
+    /// Creates a language pair with both source and target languages.
     pub fn between(source: impl Into<Language>, target: impl Into<Language>) -> Self {
         Self::new(source, Some(target.into()))
     }
 
     #[must_use]
+    /// Returns the source language.
     pub fn source(&self) -> &Language {
         &self.source
     }
 
     #[must_use]
+    /// Returns the target language, if one is set.
     pub fn target(&self) -> Option<&Language> {
         self.target.as_ref()
     }
 
+    /// Returns the Translation.framework-canonicalized language pair.
     pub fn canonicalized(&self) -> Result<Self, TranslationError> {
         let source = to_cstring(self.source.identifier())?;
         let target = self

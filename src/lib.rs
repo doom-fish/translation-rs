@@ -8,20 +8,33 @@
 )]
 
 #[cfg(feature = "async")]
+/// Async wrappers for Translation.framework operations.
 pub mod async_api;
+/// Availability APIs mirroring Translation.framework's `LanguageAvailability`.
 pub mod availability;
+/// Language recognition helpers used alongside Translation.framework.
 pub mod detection;
+/// Error re-exports for Translation.framework operations.
 pub mod error;
 pub mod ffi;
+/// Language identifier types used by Translation.framework.
 pub mod language;
+/// `LanguageAvailability` bindings for Translation.framework.
 pub mod language_availability;
+/// Source/target language pair types for Translation.framework.
 pub mod language_pair;
+/// NaturalLanguage-backed detection helpers for Translation workflows.
 pub mod language_recognition;
 mod private;
+/// Session re-exports for Translation.framework workflows.
 pub mod session;
+/// Mutable configuration helpers for Translation.framework sessions.
 pub mod translation_configuration;
+/// Error types for Translation.framework operations.
 pub mod translation_error;
+/// Response types returned by Translation.framework translations.
 pub mod translation_response;
+/// Core `TranslationSession` wrappers for Translation.framework.
 pub mod translation_session;
 
 pub use language::Language;
@@ -36,6 +49,7 @@ pub use translation_session::{
     TranslationSessionConfiguration,
 };
 
+/// Common Translation.framework wrapper types for glob imports.
 pub mod prelude {
     #[cfg(feature = "async")]
     pub use crate::async_api::{AsyncLanguageAvailability, AsyncTranslationSession};

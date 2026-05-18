@@ -3,31 +3,46 @@ use std::fmt;
 
 use crate::ffi;
 
-const FAILURE_REASON_DELIMITER: &str = "\x1f";
+const FAILURE_REASON_DELIMITER: &str = "";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Enumerates failures reported by Translation.framework and the Swift bridge.
 pub enum TranslationError {
+    /// An argument failed validation before reaching the framework.
     InvalidArgument(String),
+    /// Translation.framework is unavailable on the current macOS version.
     UnavailableOnThisMacOS(String),
+    /// The framework operation timed out.
     TimedOut(String),
+    /// The source language is unsupported by Translation.framework.
     UnsupportedSourceLanguage(String),
+    /// The target language is unsupported by Translation.framework.
     UnsupportedTargetLanguage(String),
+    /// The source and target pairing is unsupported by Translation.framework.
     UnsupportedLanguagePairing(String),
+    /// The framework could not identify the input language.
     UnableToIdentifyLanguage(String),
+    /// The request contained no translatable content.
     NothingToTranslate(String),
+    /// The session was already cancelled.
     AlreadyCancelled(String),
+    /// Required translation resources are not installed.
     NotInstalled(String),
+    /// The Swift bridge or Translation.framework returned an underlying error.
     Framework(String),
+    /// An unknown status or payload was returned by the bridge.
     Unknown(String),
 }
 
 impl TranslationError {
     #[must_use]
+    /// Returns the primary error description from the framework payload.
     pub fn error_description(&self) -> &str {
         split_payload(self.message()).0
     }
 
     #[must_use]
+    /// Returns the framework failure reason, when one was provided.
     pub fn failure_reason(&self) -> Option<&str> {
         split_payload(self.message()).1
     }

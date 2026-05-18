@@ -12,6 +12,7 @@ use crate::translation_error::TranslationError;
 use crate::translation_response::TranslationResponse;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Serializable mirror of `TranslationSession.Configuration` from Translation.framework.
 pub struct TranslationSessionConfiguration {
     source: String,
     target: Option<String>,
@@ -19,6 +20,7 @@ pub struct TranslationSessionConfiguration {
 
 impl TranslationSessionConfiguration {
     #[must_use]
+    /// Creates a session configuration from explicit source and target identifiers.
     pub fn new(source: impl Into<String>, target: impl Into<String>) -> Self {
         Self {
             source: source.into(),
@@ -27,6 +29,7 @@ impl TranslationSessionConfiguration {
     }
 
     #[must_use]
+    /// Creates a session configuration with an optional target identifier.
     pub fn with_optional_target(source: impl Into<String>, target: Option<String>) -> Self {
         Self {
             source: source.into(),
@@ -35,6 +38,7 @@ impl TranslationSessionConfiguration {
     }
 
     #[must_use]
+    /// Creates a session configuration from a `LanguagePair`.
     pub fn from_language_pair(pair: impl Into<LanguagePair>) -> Self {
         let pair = pair.into();
         Self {
@@ -45,6 +49,7 @@ impl TranslationSessionConfiguration {
         }
     }
 
+    /// Converts a `TranslationConfiguration` into a session configuration.
     pub fn try_from_translation_configuration(
         configuration: &TranslationConfiguration,
     ) -> Result<Self, TranslationError> {
@@ -60,21 +65,25 @@ impl TranslationSessionConfiguration {
     }
 
     #[must_use]
+    /// Returns the source language identifier.
     pub fn source(&self) -> &str {
         &self.source
     }
 
     #[must_use]
+    /// Returns the target identifier or an empty string when unspecified.
     pub fn target(&self) -> &str {
         self.target.as_deref().unwrap_or("")
     }
 
     #[must_use]
+    /// Returns the optional target language identifier.
     pub fn optional_target(&self) -> Option<&str> {
         self.target.as_deref()
     }
 
     #[must_use]
+    /// Returns this configuration as a `LanguagePair`.
     pub fn language_pair(&self) -> LanguagePair {
         LanguagePair::new(
             Language::from(self.source.clone()),
@@ -85,6 +94,7 @@ impl TranslationSessionConfiguration {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+/// Serializable counterpart to `TranslationSession.Request` in Translation.framework.
 pub struct TranslationRequest {
     source_text: String,
     client_identifier: Option<String>,
@@ -92,6 +102,7 @@ pub struct TranslationRequest {
 
 impl TranslationRequest {
     #[must_use]
+    /// Creates a translation request from source text.
     pub fn new(source_text: impl Into<String>) -> Self {
         Self {
             source_text: source_text.into(),
@@ -100,34 +111,41 @@ impl TranslationRequest {
     }
 
     #[must_use]
+    /// Returns the source text to translate.
     pub fn source_text(&self) -> &str {
         &self.source_text
     }
 
+    /// Replaces the source text to translate.
     pub fn set_source_text(&mut self, source_text: impl Into<String>) {
         self.source_text = source_text.into();
     }
 
     #[must_use]
+    /// Returns the client identifier, if one is set.
     pub fn client_identifier(&self) -> Option<&str> {
         self.client_identifier.as_deref()
     }
 
+    /// Sets the client identifier for correlation with framework responses.
     pub fn set_client_identifier(&mut self, client_identifier: impl Into<String>) {
         self.client_identifier = Some(client_identifier.into());
     }
 
+    /// Clears the client identifier.
     pub fn clear_client_identifier(&mut self) {
         self.client_identifier = None;
     }
 
     #[must_use]
+    /// Returns a copy with the given client identifier.
     pub fn with_client_identifier(mut self, client_identifier: impl Into<String>) -> Self {
         self.set_client_identifier(client_identifier);
         self
     }
 }
 
+/// Streams responses from `TranslationSession.translations(from:)`.
 pub struct TranslationBatchResponse {
     token: *mut c_void,
     finished: bool,
@@ -143,6 +161,7 @@ impl Drop for TranslationBatchResponse {
 }
 
 impl TranslationBatchResponse {
+    /// Advances to the next streaming translation response.
     pub fn try_next(&mut self) -> Result<Option<TranslationResponse>, TranslationError> {
         if self.finished {
             return Ok(None);
@@ -164,6 +183,7 @@ impl TranslationBatchResponse {
         unsafe { parse_json_ptr(response_json, "streaming translation response") }.map(Some)
     }
 
+    /// Collects all remaining streaming responses into a vector.
     pub fn collect_all(mut self) -> Result<Vec<TranslationResponse>, TranslationError> {
         let mut responses = Vec::new();
         while let Some(response) = self.try_next()? {
@@ -188,6 +208,7 @@ impl Iterator for TranslationBatchResponse {
     }
 }
 
+/// Wraps Translation.framework's `TranslationSession`.
 pub struct TranslationSession {
     token: *mut c_void,
     configuration: TranslationSessionConfiguration,
@@ -203,6 +224,7 @@ impl Drop for TranslationSession {
 }
 
 impl TranslationSession {
+    /// Creates a session from a `TranslationSessionConfiguration`.
     pub fn new(configuration: TranslationSessionConfiguration) -> Result<Self, TranslationError> {
         let configuration_json = json_cstring(&configuration)?;
         let mut token: *mut c_void = ptr::null_mut();
@@ -219,10 +241,12 @@ impl TranslationSession {
         }
     }
 
+    /// Creates a session from a `LanguagePair`.
     pub fn from_language_pair(pair: impl Into<LanguagePair>) -> Result<Self, TranslationError> {
         Self::new(TranslationSessionConfiguration::from_language_pair(pair))
     }
 
+    /// Creates a session from a mutable `TranslationConfiguration`.
     pub fn from_translation_configuration(
         configuration: &TranslationConfiguration,
     ) -> Result<Self, TranslationError> {
@@ -237,30 +261,36 @@ impl TranslationSession {
     }
 
     #[must_use]
+    /// Returns the session configuration.
     pub fn configuration(&self) -> &TranslationSessionConfiguration {
         &self.configuration
     }
 
     #[must_use]
+    /// Returns the configured source language.
     pub fn source_language(&self) -> Option<Language> {
         Some(Language::from(self.configuration.source().to_owned()))
     }
 
     #[must_use]
+    /// Returns the configured target language, if one was set.
     pub fn target_language(&self) -> Option<Language> {
         self.configuration
             .optional_target()
             .map(|language| Language::from(language.to_owned()))
     }
 
+    /// Reports whether the session can request language pack downloads.
     pub fn can_request_downloads(&self) -> Result<bool, TranslationError> {
         self.read_bool(ffi::trl_session_can_request_downloads)
     }
 
+    /// Reports whether Translation.framework considers the session ready.
     pub fn is_ready(&self) -> Result<bool, TranslationError> {
         self.read_bool(ffi::trl_session_is_ready)
     }
 
+    /// Cancels the underlying Translation.framework session.
     pub fn cancel(&self) -> Result<(), TranslationError> {
         let mut err_msg: *mut c_char = ptr::null_mut();
         let status = unsafe { ffi::trl_session_cancel(self.token, &mut err_msg) };
@@ -271,6 +301,7 @@ impl TranslationSession {
         }
     }
 
+    /// Prepares language resources via `TranslationSession.prepareTranslation()`.
     pub fn prepare_translation(&self) -> Result<(), TranslationError> {
         let mut err_msg: *mut c_char = ptr::null_mut();
         let status = unsafe { ffi::trl_session_prepare_translation(self.token, &mut err_msg) };
@@ -281,6 +312,7 @@ impl TranslationSession {
         }
     }
 
+    /// Translates a single string with `TranslationSession.translate(_:)`.
     pub fn translate(&self, text: &str) -> Result<TranslationResponse, TranslationError> {
         let text = to_cstring(text)?;
         let mut response_json: *mut c_char = ptr::null_mut();
@@ -300,6 +332,7 @@ impl TranslationSession {
         }
     }
 
+    /// Translates a batch with `TranslationSession.translations(from:)`.
     pub fn translate_batch(
         &self,
         requests: &[TranslationRequest],
@@ -322,6 +355,7 @@ impl TranslationSession {
         }
     }
 
+    /// Starts a streaming batch translation for `TranslationSession.translations(from:)`.
     pub fn translate_batch_streaming(
         &self,
         requests: &[TranslationRequest],

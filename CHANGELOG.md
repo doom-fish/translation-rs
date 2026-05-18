@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.2] - 2026-05-18
+
+### Changed
+
+- Added concise rustdoc coverage across the safe public API outside `ffi`, including references to the corresponding Translation.framework types where helpful.
+
 ## [0.3.1] - 2026-05-18
 
 ### Fixed

@@ -6,6 +6,7 @@ use crate::language::Language;
 use crate::private::{error_from_status, string_from_ptr, to_cstring};
 use crate::translation_error::TranslationError;
 
+/// Detects the dominant language as a `Language` using `NLLanguageRecognizer`.
 pub fn recognize_language(text: &str) -> Result<Option<Language>, TranslationError> {
     let text = to_cstring(text)?;
     let mut language: *mut c_char = ptr::null_mut();
@@ -22,6 +23,7 @@ pub fn recognize_language(text: &str) -> Result<Option<Language>, TranslationErr
         .map(Some)
 }
 
+/// Detects the dominant language identifier using `NLLanguageRecognizer`.
 pub fn detect_language(text: &str) -> Result<Option<String>, TranslationError> {
     recognize_language(text).map(|language| language.map(String::from))
 }

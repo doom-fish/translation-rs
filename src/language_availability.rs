@@ -8,15 +8,21 @@ use crate::private::{error_from_status, parse_json_ptr, to_cstring};
 use crate::translation_error::TranslationError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Mirrors `LanguageAvailability.Status` from Translation.framework.
 pub enum LanguageAvailabilityStatus {
+    /// Translation resources are installed for this request.
     Installed,
+    /// Translation resources are supported but may need installation.
     Supported,
+    /// Translation.framework cannot fulfill this request.
     Unsupported,
+    /// Translation.framework returned an unknown raw status value.
     Unknown(i32),
 }
 
 impl LanguageAvailabilityStatus {
     #[must_use]
+    /// Converts a raw Translation.framework status code into a typed status.
     pub const fn from_raw(raw: i32) -> Self {
         match raw {
             0 => Self::Installed,
@@ -27,6 +33,7 @@ impl LanguageAvailabilityStatus {
     }
 }
 
+/// Wraps Translation.framework's `LanguageAvailability`.
 pub struct LanguageAvailability {
     token: *mut c_void,
 }
@@ -41,6 +48,7 @@ impl Drop for LanguageAvailability {
 }
 
 impl LanguageAvailability {
+    /// Creates a new `LanguageAvailability` wrapper.
     pub fn new() -> Result<Self, TranslationError> {
         let token = unsafe { ffi::trl_language_availability_new() };
         if token.is_null() {
@@ -56,11 +64,13 @@ impl LanguageAvailability {
         self.token
     }
 
+    /// Returns supported language identifiers from `LanguageAvailability.supportedLanguages`.
     pub fn supported_languages(&self) -> Result<Vec<String>, TranslationError> {
         self.supported_language_objects()
             .map(|languages| languages.into_iter().map(String::from).collect())
     }
 
+    /// Returns supported language objects from `LanguageAvailability.supportedLanguages`.
     pub fn supported_language_objects(&self) -> Result<Vec<Language>, TranslationError> {
         let mut languages_json: *mut c_char = ptr::null_mut();
         let mut err_msg: *mut c_char = ptr::null_mut();
@@ -78,6 +88,7 @@ impl LanguageAvailability {
         }
     }
 
+    /// Returns pair availability for explicit source and target identifiers.
     pub fn status_for_pair(
         &self,
         source_language: &str,
@@ -88,6 +99,7 @@ impl LanguageAvailability {
         self.status_for_languages(&source_language, Some(&target_language))
     }
 
+    /// Returns pair availability for a `LanguagePair`.
     pub fn status_for_language_pair(
         &self,
         pair: &LanguagePair,
@@ -95,6 +107,7 @@ impl LanguageAvailability {
         self.status_for_languages(pair.source(), pair.target())
     }
 
+    /// Returns pair availability using `LanguageAvailability.status(from:to:)`.
     pub fn status_for_languages(
         &self,
         source_language: &Language,
@@ -124,6 +137,7 @@ impl LanguageAvailability {
         }
     }
 
+    /// Returns translation availability for text and a target identifier.
     pub fn status_for_text(
         &self,
         text: &str,
@@ -133,6 +147,7 @@ impl LanguageAvailability {
         self.status_for_text_in_language(text, Some(&target_language))
     }
 
+    /// Returns translation availability for text with an optional target language.
     pub fn status_for_text_in_language(
         &self,
         text: &str,
