@@ -1,4 +1,4 @@
-use translation::TranslationConfiguration;
+use translation::{TranslationConfiguration, TranslationStrategy};
 
 fn main() {
     tracks_source_target_and_version();
@@ -11,6 +11,9 @@ fn tracks_source_target_and_version() {
 
     assert_eq!(configuration.source_identifier(), Some("en"));
     assert_eq!(configuration.target_identifier(), Some("es"));
+    assert_eq!(configuration.preferred_strategy(), TranslationStrategy::HighFidelity);
+    configuration.set_preferred_strategy(TranslationStrategy::LowLatency);
+    assert_eq!(configuration.preferred_strategy(), TranslationStrategy::LowLatency);
     assert_eq!(configuration.version(), 0);
 
     configuration.invalidate();

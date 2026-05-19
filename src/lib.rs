@@ -28,6 +28,8 @@ pub mod language_recognition;
 mod private;
 /// Session re-exports for Translation.framework workflows.
 pub mod session;
+/// Translation attribute helpers for attributed text workflows.
+pub mod translation_attributes;
 /// Mutable configuration helpers for Translation.framework sessions.
 pub mod translation_configuration;
 /// Error types for Translation.framework operations.
@@ -41,12 +43,17 @@ pub use language::Language;
 pub use language_availability::{LanguageAvailability, LanguageAvailabilityStatus};
 pub use language_pair::LanguagePair;
 pub use language_recognition::{detect_language, recognize_language};
+pub use translation_attributes::{
+    SkipTranslationAttribute, SkipTranslationAttributeValue, TranslationAttributedRun,
+    TranslationAttributedString, TranslationAttributes, TranslationAttributesDecodingConfiguration,
+    TranslationAttributesEncodingConfiguration,
+};
 pub use translation_configuration::TranslationConfiguration;
 pub use translation_error::TranslationError;
 pub use translation_response::TranslationResponse;
 pub use translation_session::{
     TranslationBatchResponse, TranslationRequest, TranslationSession,
-    TranslationSessionConfiguration,
+    TranslationSessionConfiguration, TranslationStrategy,
 };
 
 /// Common Translation.framework wrapper types for glob imports.
@@ -57,11 +64,16 @@ pub mod prelude {
     pub use crate::language_availability::{LanguageAvailability, LanguageAvailabilityStatus};
     pub use crate::language_pair::LanguagePair;
     pub use crate::language_recognition::{detect_language, recognize_language};
+    pub use crate::translation_attributes::{
+        SkipTranslationAttribute, SkipTranslationAttributeValue, TranslationAttributedRun,
+        TranslationAttributedString, TranslationAttributes,
+        TranslationAttributesDecodingConfiguration, TranslationAttributesEncodingConfiguration,
+    };
     pub use crate::translation_configuration::TranslationConfiguration;
     pub use crate::translation_error::TranslationError;
     pub use crate::translation_response::TranslationResponse;
     pub use crate::translation_session::{
         TranslationBatchResponse, TranslationRequest, TranslationSession,
-        TranslationSessionConfiguration,
+        TranslationSessionConfiguration, TranslationStrategy,
     };
 }

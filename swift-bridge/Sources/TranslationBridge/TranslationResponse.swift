@@ -6,6 +6,8 @@ struct TRLTranslationResponsePayload: Codable {
     var targetLanguage: String
     var sourceText: String
     var targetText: String
+    var attributedSourceText: TRLTranslationAttributedStringPayload?
+    var attributedTargetText: TRLTranslationAttributedStringPayload?
     var clientIdentifier: String?
 }
 
@@ -18,6 +20,18 @@ func trlTranslationResponsePayload(
         targetLanguage: trlLanguageTag(from: response.targetLanguage),
         sourceText: response.sourceText,
         targetText: response.targetText,
+        attributedSourceText: {
+            if #available(macOS 26.4, *) {
+                return response.attributedSourceText.map(trlTranslationAttributedStringPayload)
+            }
+            return nil
+        }(),
+        attributedTargetText: {
+            if #available(macOS 26.4, *) {
+                return response.attributedTargetText.map(trlTranslationAttributedStringPayload)
+            }
+            return nil
+        }(),
         clientIdentifier: response.clientIdentifier
     )
 }

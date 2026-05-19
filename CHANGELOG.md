@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.0] - 2026-05-19
+
+### Added
+
+- Added `TranslationStrategy` plus `preferred_strategy` wrappers across `LanguageAvailability`, `TranslationConfiguration`, `TranslationSessionConfiguration`, and `TranslationSession`.
+- Added `TranslationAttributedString`, `SkipTranslationAttribute`, and Translation attribute markers for attributed translation payloads.
+- Added attributed translation support for `TranslationRequest`, `TranslationResponse`, and direct `TranslationSession::translate_attributed` calls.
+- Added Swift bridge support for preferred strategy accessors, attributed request payloads, and attributed response payloads.
+- Added `tests/translation_strategy_attributed_tests.rs` covering preferred strategy round-trips, attributed translation, and skip-translation attributes.
+
 ## [0.3.2] - 2026-05-18
 
 ### Changed

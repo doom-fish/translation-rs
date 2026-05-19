@@ -7,15 +7,50 @@ use crate::ffi;
 use crate::language::Language;
 use crate::language_pair::LanguagePair;
 use crate::private::{error_from_status, json_cstring, parse_json_ptr, to_cstring};
+use crate::translation_attributes::TranslationAttributedString;
 use crate::translation_configuration::TranslationConfiguration;
 use crate::translation_error::TranslationError;
 use crate::translation_response::TranslationResponse;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+/// Mirrors `TranslationSession.Strategy` from Translation.framework.
+pub enum TranslationStrategy {
+    /// Prefer higher-quality translations when available.
+    #[default]
+    HighFidelity,
+    /// Prefer lower-latency translations when available.
+    LowLatency,
+}
+
+/// Alias mirroring `TranslationSession.Strategy` inside the `translation_session` module.
+pub use TranslationStrategy as Strategy;
+
+impl TranslationStrategy {
+    pub(crate) const fn from_raw(raw: i32) -> Option<Self> {
+        match raw {
+            0 => Some(Self::HighFidelity),
+            1 => Some(Self::LowLatency),
+            _ => None,
+        }
+    }
+
+    pub(crate) const fn raw(self) -> i32 {
+        match self {
+            Self::HighFidelity => 0,
+            Self::LowLatency => 1,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 /// Serializable mirror of `TranslationSession.Configuration` from Translation.framework.
 pub struct TranslationSessionConfiguration {
     source: String,
     target: Option<String>,
+    #[serde(default)]
+    preferred_strategy: TranslationStrategy,
 }
 
 impl TranslationSessionConfiguration {
@@ -25,6 +60,7 @@ impl TranslationSessionConfiguration {
         Self {
             source: source.into(),
             target: Some(target.into()),
+            preferred_strategy: TranslationStrategy::default(),
         }
     }
 
@@ -34,6 +70,7 @@ impl TranslationSessionConfiguration {
         Self {
             source: source.into(),
             target,
+            preferred_strategy: TranslationStrategy::default(),
         }
     }
 
@@ -46,6 +83,7 @@ impl TranslationSessionConfiguration {
             target: pair
                 .target()
                 .map(|language| language.identifier().to_owned()),
+            preferred_strategy: TranslationStrategy::default(),
         }
     }
 
@@ -61,7 +99,8 @@ impl TranslationSessionConfiguration {
         Ok(Self::with_optional_target(
             source.to_owned(),
             configuration.target_identifier().map(ToOwned::to_owned),
-        ))
+        )
+        .with_preferred_strategy(configuration.preferred_strategy()))
     }
 
     #[must_use]
@@ -83,6 +122,19 @@ impl TranslationSessionConfiguration {
     }
 
     #[must_use]
+    /// Returns the preferred Translation.framework strategy.
+    pub const fn preferred_strategy(&self) -> TranslationStrategy {
+        self.preferred_strategy
+    }
+
+    #[must_use]
+    /// Returns a copy with the given preferred strategy.
+    pub fn with_preferred_strategy(mut self, preferred_strategy: TranslationStrategy) -> Self {
+        self.preferred_strategy = preferred_strategy;
+        self
+    }
+
+    #[must_use]
     /// Returns this configuration as a `LanguagePair`.
     pub fn language_pair(&self) -> LanguagePair {
         LanguagePair::new(
@@ -97,6 +149,8 @@ impl TranslationSessionConfiguration {
 /// Serializable counterpart to `TranslationSession.Request` in Translation.framework.
 pub struct TranslationRequest {
     source_text: String,
+    #[serde(default)]
+    attributed_source_text: Option<TranslationAttributedString>,
     client_identifier: Option<String>,
 }
 
@@ -106,6 +160,20 @@ impl TranslationRequest {
     pub fn new(source_text: impl Into<String>) -> Self {
         Self {
             source_text: source_text.into(),
+            attributed_source_text: None,
+            client_identifier: None,
+        }
+    }
+
+    #[must_use]
+    /// Creates a translation request from attributed source text.
+    pub fn from_attributed_source_text(
+        source_text: impl Into<TranslationAttributedString>,
+    ) -> Self {
+        let source_text = source_text.into();
+        Self {
+            source_text: source_text.text().to_owned(),
+            attributed_source_text: Some(source_text),
             client_identifier: None,
         }
     }
@@ -116,9 +184,31 @@ impl TranslationRequest {
         &self.source_text
     }
 
-    /// Replaces the source text to translate.
+    #[must_use]
+    /// Returns the attributed source text when this request carries attributed input.
+    pub fn attributed_source_text(&self) -> Option<&TranslationAttributedString> {
+        self.attributed_source_text.as_ref()
+    }
+
+    /// Replaces the source text to translate and clears attributed input.
     pub fn set_source_text(&mut self, source_text: impl Into<String>) {
         self.source_text = source_text.into();
+        self.attributed_source_text = None;
+    }
+
+    /// Replaces the attributed source text to translate.
+    pub fn set_attributed_source_text(
+        &mut self,
+        attributed_source_text: impl Into<TranslationAttributedString>,
+    ) {
+        let attributed_source_text = attributed_source_text.into();
+        attributed_source_text.text().clone_into(&mut self.source_text);
+        self.attributed_source_text = Some(attributed_source_text);
+    }
+
+    /// Clears the attributed source text payload while preserving plain text.
+    pub fn clear_attributed_source_text(&mut self) {
+        self.attributed_source_text = None;
     }
 
     #[must_use]
@@ -135,6 +225,16 @@ impl TranslationRequest {
     /// Clears the client identifier.
     pub fn clear_client_identifier(&mut self) {
         self.client_identifier = None;
+    }
+
+    #[must_use]
+    /// Returns a copy with the given attributed source text.
+    pub fn with_attributed_source_text(
+        mut self,
+        attributed_source_text: impl Into<TranslationAttributedString>,
+    ) -> Self {
+        self.set_attributed_source_text(attributed_source_text);
+        self
     }
 
     #[must_use]
@@ -280,6 +380,24 @@ impl TranslationSession {
             .map(|language| Language::from(language.to_owned()))
     }
 
+    /// Returns the Translation.framework preferred strategy for this session.
+    pub fn preferred_strategy(&self) -> Result<TranslationStrategy, TranslationError> {
+        let mut raw = 0;
+        let mut err_msg: *mut c_char = ptr::null_mut();
+        let status = unsafe {
+            ffi::trl_session_preferred_strategy(self.token, &mut raw, &mut err_msg)
+        };
+        if status == ffi::status::OK {
+            TranslationStrategy::from_raw(raw).ok_or_else(|| {
+                TranslationError::Unknown(format!(
+                    "unknown TranslationSession.Strategy raw value returned by Swift bridge: {raw}"
+                ))
+            })
+        } else {
+            Err(unsafe { error_from_status(status, err_msg) })
+        }
+    }
+
     /// Reports whether the session can request language pack downloads.
     pub fn can_request_downloads(&self) -> Result<bool, TranslationError> {
         self.read_bool(ffi::trl_session_can_request_downloads)
@@ -321,6 +439,29 @@ impl TranslationSession {
             ffi::trl_session_translate_text_json(
                 self.token,
                 text.as_ptr(),
+                &mut response_json,
+                &mut err_msg,
+            )
+        };
+        if status == ffi::status::OK {
+            unsafe { parse_json_ptr(response_json, "translation response") }
+        } else {
+            Err(unsafe { error_from_status(status, err_msg) })
+        }
+    }
+
+    /// Translates attributed text with `TranslationSession.translate(_:)`.
+    pub fn translate_attributed(
+        &self,
+        text: &TranslationAttributedString,
+    ) -> Result<TranslationResponse, TranslationError> {
+        let text_json = json_cstring(text)?;
+        let mut response_json: *mut c_char = ptr::null_mut();
+        let mut err_msg: *mut c_char = ptr::null_mut();
+        let status = unsafe {
+            ffi::trl_session_translate_attributed_json(
+                self.token,
+                text_json.as_ptr(),
                 &mut response_json,
                 &mut err_msg,
             )

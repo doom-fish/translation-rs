@@ -3,6 +3,7 @@ import Translation
 
 struct TRLTranslationRequestPayload: Codable {
     var sourceText: String
+    var attributedSourceText: TRLTranslationAttributedStringPayload?
     var clientIdentifier: String?
 }
 
@@ -11,13 +12,43 @@ struct TRLTranslationRequestPayload: Codable {
 final class TRLInstalledTranslationSession: NSObject {
     let session: TranslationSession
 
-    init(configuration: TRLTranslationSessionConfigurationPayload) {
-        session = TranslationSession(
-            installedSource: trlLanguage(from: configuration.source),
-            target: configuration.target.map { trlLanguage(from: $0) }
-        )
+    init(configuration: TRLTranslationSessionConfigurationPayload) throws {
+        if #available(macOS 26.4, *) {
+            session = TranslationSession(
+                installedSource: trlLanguage(from: configuration.source),
+                target: configuration.target.map { trlLanguage(from: $0) },
+                preferredStrategy: try trlStrategy(from: configuration.preferredStrategy)
+            )
+        } else {
+            guard configuration.preferredStrategy == "highFidelity" else {
+                throw TRLBridgeError.unavailableOnThisMacOS(
+                    "TranslationSession preferredStrategy requires macOS 26.4+"
+                )
+            }
+            session = TranslationSession(
+                installedSource: trlLanguage(from: configuration.source),
+                target: configuration.target.map { trlLanguage(from: $0) }
+            )
+        }
         super.init()
     }
+}
+
+@available(macOS 26.4, *)
+func trlSessionRequest(
+    from payload: TRLTranslationRequestPayload
+) throws -> TranslationSession.Request {
+    if let attributedSourceText = payload.attributedSourceText {
+        let attributedSourceText = try trlAttributedString(from: attributedSourceText)
+        return TranslationSession.Request(
+            sourceText: attributedSourceText,
+            clientIdentifier: payload.clientIdentifier
+        )
+    }
+    return TranslationSession.Request(
+        sourceText: payload.sourceText,
+        clientIdentifier: payload.clientIdentifier
+    )
 }
 
 @available(macOS 26.0, *)
@@ -47,7 +78,7 @@ final class TRLTranslationSessionBox: NSObject {
         self.configuration = canonical
         #if TRANSLATION_HAS_MACOS26_SDK
         if #available(macOS 26.0, *) {
-            installedSession = TRLInstalledTranslationSession(configuration: canonical)
+            installedSession = try TRLInstalledTranslationSession(configuration: canonical)
         } else {
             installedSession = nil
         }
@@ -160,6 +191,36 @@ public func trl_session_is_ready(
     }
 }
 
+@_cdecl("trl_session_preferred_strategy")
+public func trl_session_preferred_strategy(
+    _ token: UnsafeMutableRawPointer?,
+    _ outStrategy: UnsafeMutablePointer<Int32>,
+    _ outErrorMessage: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+) -> Int32 {
+    do {
+        guard #available(macOS 26.4, *) else {
+            throw TRLBridgeError.unavailableOnThisMacOS(
+                "TranslationSession preferredStrategy requires macOS 26.4+"
+            )
+        }
+        let box = try trlTranslationSessionBox(token)
+        #if TRANSLATION_HAS_MACOS26_SDK
+        outStrategy.pointee = try trl_block_on_async {
+            let session = try box.session()
+            return trlStrategyRaw(session.preferredStrategy)
+        }
+        return TRL_OK
+        #else
+        _ = box
+        throw TRLBridgeError.unavailableOnThisMacOS(
+            "TranslationSession preferredStrategy requires the macOS 26 SDK"
+        )
+        #endif
+    } catch {
+        return trlWriteError(outErrorMessage, error)
+    }
+}
+
 @_cdecl("trl_session_cancel")
 public func trl_session_cancel(
     _ token: UnsafeMutableRawPointer?,
@@ -249,6 +310,45 @@ public func trl_session_translate_text_json(
     }
 }
 
+@_cdecl("trl_session_translate_attributed_json")
+public func trl_session_translate_attributed_json(
+    _ token: UnsafeMutableRawPointer?,
+    _ attributedTextJson: UnsafePointer<CChar>?,
+    _ outResponseJson: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>,
+    _ outErrorMessage: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+) -> Int32 {
+    do {
+        guard #available(macOS 26.4, *) else {
+            throw TRLBridgeError.unavailableOnThisMacOS(
+                "manual TranslationSession attributed translation requires macOS 26.4+"
+            )
+        }
+        let box = try trlTranslationSessionBox(token)
+        let attributedText = try trlDecodeJSON(
+            attributedTextJson,
+            as: TRLTranslationAttributedStringPayload.self
+        )
+        #if TRANSLATION_HAS_MACOS26_SDK
+        let json = try trl_block_on_async {
+            let response = try await box.session().translate(
+                try trlAttributedString(from: attributedText)
+            )
+            return try trlEncodeJSON(trlTranslationResponsePayload(from: response))
+        }
+        outResponseJson.pointee = trlCString(json)
+        return TRL_OK
+        #else
+        _ = box
+        _ = attributedText
+        throw TRLBridgeError.unavailableOnThisMacOS(
+            "manual TranslationSession attributed translation requires the macOS 26 SDK"
+        )
+        #endif
+    } catch {
+        return trlWriteError(outErrorMessage, error)
+    }
+}
+
 @_cdecl("trl_session_translate_batch_json")
 public func trl_session_translate_batch_json(
     _ token: UnsafeMutableRawPointer?,
@@ -266,11 +366,21 @@ public func trl_session_translate_batch_json(
         let requests = try trlDecodeJSON(requestsJson, as: [TRLTranslationRequestPayload].self)
         #if TRANSLATION_HAS_MACOS26_SDK
         let json = try trl_block_on_async {
-            let sessionRequests = requests.map {
-                TranslationSession.Request(
-                    sourceText: $0.sourceText,
-                    clientIdentifier: $0.clientIdentifier
-                )
+            let sessionRequests: [TranslationSession.Request]
+            if #available(macOS 26.4, *) {
+                sessionRequests = try requests.map { try trlSessionRequest(from: $0) }
+            } else {
+                guard requests.allSatisfy({ $0.attributedSourceText == nil }) else {
+                    throw TRLBridgeError.unavailableOnThisMacOS(
+                        "TranslationSession.Request.attributedSourceText requires macOS 26.4+"
+                    )
+                }
+                sessionRequests = requests.map {
+                    TranslationSession.Request(
+                        sourceText: $0.sourceText,
+                        clientIdentifier: $0.clientIdentifier
+                    )
+                }
             }
             let responses = try await box.session().translations(from: sessionRequests)
             return try trlEncodeJSON(responses.map(trlTranslationResponsePayload))
@@ -305,11 +415,21 @@ public func trl_session_translate_batch_stream_json(
         let box = try trlTranslationSessionBox(token)
         let requests = try trlDecodeJSON(requestsJson, as: [TRLTranslationRequestPayload].self)
         #if TRANSLATION_HAS_MACOS26_SDK
-        let sessionRequests = requests.map {
-            TranslationSession.Request(
-                sourceText: $0.sourceText,
-                clientIdentifier: $0.clientIdentifier
-            )
+        let sessionRequests: [TranslationSession.Request]
+        if #available(macOS 26.4, *) {
+            sessionRequests = try requests.map { try trlSessionRequest(from: $0) }
+        } else {
+            guard requests.allSatisfy({ $0.attributedSourceText == nil }) else {
+                throw TRLBridgeError.unavailableOnThisMacOS(
+                    "TranslationSession.Request.attributedSourceText requires macOS 26.4+"
+                )
+            }
+            sessionRequests = requests.map {
+                TranslationSession.Request(
+                    sourceText: $0.sourceText,
+                    clientIdentifier: $0.clientIdentifier
+                )
+            }
         }
         outBatchToken.pointee = trlRetain(
             TRLTranslationBatchResponseBox(

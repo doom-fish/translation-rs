@@ -3,7 +3,12 @@ import Translation
 
 @available(macOS 15.0, *)
 final class TRLLanguageAvailabilityBox: NSObject {
-    let availability = LanguageAvailability()
+    let availability: LanguageAvailability
+
+    init(availability: LanguageAvailability = LanguageAvailability()) {
+        self.availability = availability
+        super.init()
+    }
 }
 
 @available(macOS 15.0, *)
@@ -57,10 +62,82 @@ public func trl_language_availability_new() -> UnsafeMutableRawPointer? {
     return nil
 }
 
+@_cdecl("trl_language_availability_new_with_preferred_strategy")
+public func trl_language_availability_new_with_preferred_strategy(
+    _ preferredStrategyRaw: Int32,
+    _ outToken: UnsafeMutablePointer<UnsafeMutableRawPointer?>,
+    _ outErrorMessage: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+) -> Int32 {
+    do {
+        guard #available(macOS 15.0, *) else {
+            throw TRLBridgeError.unavailableOnThisMacOS(
+                "LanguageAvailability requires macOS 15+"
+            )
+        }
+        #if TRANSLATION_HAS_MACOS26_SDK
+        if #available(macOS 26.4, *) {
+            let preferredStrategy = try trlStrategy(from: preferredStrategyRaw)
+            outToken.pointee = trlRetain(
+                TRLLanguageAvailabilityBox(
+                    availability: LanguageAvailability(
+                        preferredStrategy: preferredStrategy
+                    )
+                )
+            )
+            return TRL_OK
+        }
+        guard preferredStrategyRaw == 0 else {
+            throw TRLBridgeError.unavailableOnThisMacOS(
+                "LanguageAvailability preferredStrategy requires macOS 26.4+"
+            )
+        }
+        outToken.pointee = trlRetain(TRLLanguageAvailabilityBox())
+        return TRL_OK
+        #else
+        guard preferredStrategyRaw == 0 else {
+            throw TRLBridgeError.unavailableOnThisMacOS(
+                "LanguageAvailability preferredStrategy requires the macOS 26 SDK"
+            )
+        }
+        outToken.pointee = trlRetain(TRLLanguageAvailabilityBox())
+        return TRL_OK
+        #endif
+    } catch {
+        return trlWriteError(outErrorMessage, error)
+    }
+}
+
 @_cdecl("trl_language_availability_release")
 public func trl_language_availability_release(_ token: UnsafeMutableRawPointer?) {
     guard let token else { return }
     trlRelease(token)
+}
+
+@_cdecl("trl_language_availability_preferred_strategy")
+public func trl_language_availability_preferred_strategy(
+    _ token: UnsafeMutableRawPointer?,
+    _ outStrategy: UnsafeMutablePointer<Int32>,
+    _ outErrorMessage: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+) -> Int32 {
+    do {
+        guard #available(macOS 26.4, *) else {
+            throw TRLBridgeError.unavailableOnThisMacOS(
+                "LanguageAvailability preferredStrategy requires macOS 26.4+"
+            )
+        }
+        let box = try trlLanguageAvailabilityBox(token)
+        #if TRANSLATION_HAS_MACOS26_SDK
+        outStrategy.pointee = trlStrategyRaw(box.availability.preferredStrategy)
+        return TRL_OK
+        #else
+        _ = box
+        throw TRLBridgeError.unavailableOnThisMacOS(
+            "LanguageAvailability preferredStrategy requires the macOS 26 SDK"
+        )
+        #endif
+    } catch {
+        return trlWriteError(outErrorMessage, error)
+    }
 }
 
 @_cdecl("trl_language_availability_supported_languages_json")

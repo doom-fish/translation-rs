@@ -6,6 +6,7 @@ use crate::language::Language;
 use crate::language_pair::LanguagePair;
 use crate::private::{error_from_status, parse_json_ptr, to_cstring};
 use crate::translation_error::TranslationError;
+use crate::translation_session::TranslationStrategy;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// Mirrors `LanguageAvailability.Status` from Translation.framework.
@@ -59,9 +60,47 @@ impl LanguageAvailability {
         Ok(Self { token })
     }
 
+    /// Creates a `LanguageAvailability` wrapper with a preferred strategy.
+    pub fn with_preferred_strategy(
+        preferred_strategy: TranslationStrategy,
+    ) -> Result<Self, TranslationError> {
+        let mut token: *mut c_void = ptr::null_mut();
+        let mut err_msg: *mut c_char = ptr::null_mut();
+        let status = unsafe {
+            ffi::trl_language_availability_new_with_preferred_strategy(
+                preferred_strategy.raw(),
+                &mut token,
+                &mut err_msg,
+            )
+        };
+        if status == ffi::status::OK && !token.is_null() {
+            Ok(Self { token })
+        } else {
+            Err(unsafe { error_from_status(status, err_msg) })
+        }
+    }
+
     #[cfg(feature = "async")]
     pub(crate) const fn raw_token(&self) -> *mut c_void {
         self.token
+    }
+
+    /// Returns Translation.framework's preferred strategy for this availability probe.
+    pub fn preferred_strategy(&self) -> Result<TranslationStrategy, TranslationError> {
+        let mut raw = 0;
+        let mut err_msg: *mut c_char = ptr::null_mut();
+        let status = unsafe {
+            ffi::trl_language_availability_preferred_strategy(self.token, &mut raw, &mut err_msg)
+        };
+        if status == ffi::status::OK {
+            TranslationStrategy::from_raw(raw).ok_or_else(|| {
+                TranslationError::Unknown(format!(
+                    "unknown TranslationSession.Strategy raw value returned by Swift bridge: {raw}"
+                ))
+            })
+        } else {
+            Err(unsafe { error_from_status(status, err_msg) })
+        }
     }
 
     /// Returns supported language identifiers from `LanguageAvailability.supportedLanguages`.

@@ -1,6 +1,6 @@
 use translation::{
-    Language, TranslationError, TranslationRequest, TranslationSession,
-    TranslationSessionConfiguration,
+    Language, TranslationAttributedString, TranslationError, TranslationRequest,
+    TranslationSession, TranslationSessionConfiguration, TranslationStrategy,
 };
 
 fn main() -> Result<(), TranslationError> {
@@ -9,7 +9,8 @@ fn main() -> Result<(), TranslationError> {
 }
 
 fn exposes_configuration_properties_and_request_mutation() -> Result<(), TranslationError> {
-    let configuration = TranslationSessionConfiguration::new("en", "es");
+    let configuration = TranslationSessionConfiguration::new("en", "es")
+        .with_preferred_strategy(TranslationStrategy::LowLatency);
     let session = TranslationSession::new(configuration.clone())?;
 
     assert_eq!(session.configuration(), &configuration);
@@ -23,11 +24,20 @@ fn exposes_configuration_properties_and_request_mutation() -> Result<(), Transla
         .as_ref()
         .map(Language::identifier)
         .is_some_and(|tag| tag.starts_with("es")));
+    assert_eq!(
+        session.configuration().preferred_strategy(),
+        TranslationStrategy::LowLatency
+    );
 
-    let mut request = TranslationRequest::new("hello world");
+    let attributed = TranslationAttributedString::new("hola mundo")
+        .with_skip_translation_for_substring("mundo")?;
+    let mut request = TranslationRequest::new("hello world")
+        .with_attributed_source_text(attributed.clone());
     request.set_source_text("hola mundo");
+    request.set_attributed_source_text(attributed);
     request.set_client_identifier("greeting");
     assert_eq!(request.source_text(), "hola mundo");
+    assert!(request.attributed_source_text().is_some());
     assert_eq!(request.client_identifier(), Some("greeting"));
     request.clear_client_identifier();
     assert_eq!(request.client_identifier(), None);
@@ -40,6 +50,12 @@ fn exposes_configuration_properties_and_request_mutation() -> Result<(), Transla
 
     match session.is_ready() {
         Ok(_) => {}
+        Err(TranslationError::UnavailableOnThisMacOS(_)) => return Ok(()),
+        Err(error) => return Err(error),
+    }
+
+    match session.preferred_strategy() {
+        Ok(strategy) => assert_eq!(strategy, TranslationStrategy::LowLatency),
         Err(TranslationError::UnavailableOnThisMacOS(_)) => return Ok(()),
         Err(error) => return Err(error),
     }

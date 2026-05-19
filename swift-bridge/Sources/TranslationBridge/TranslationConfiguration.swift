@@ -3,6 +3,7 @@ import Foundation
 struct TRLTranslationSessionConfigurationPayload: Codable {
     var source: String
     var target: String?
+    var preferredStrategy: String = "highFidelity"
 }
 
 func trlCanonicalizeSessionConfiguration(
@@ -20,6 +21,9 @@ func trlCanonicalizeSessionConfiguration(
     }
     return TRLTranslationSessionConfigurationPayload(
         source: trlLanguageTag(from: trlLanguage(from: configuration.source)),
-        target: configuration.target.map { trlLanguageTag(from: trlLanguage(from: $0)) }
+        target: configuration.target.map { trlLanguageTag(from: trlLanguage(from: $0)) },
+        preferredStrategy: try trlCanonicalizeStrategyIdentifier(
+            configuration.preferredStrategy
+        )
     )
 }

@@ -2,12 +2,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::language::Language;
 use crate::language_pair::LanguagePair;
+use crate::translation_session::TranslationStrategy;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 /// Tracks mutable source and target languages for Translation.framework workflows.
 pub struct TranslationConfiguration {
     source: Option<Language>,
     target: Option<Language>,
+    #[serde(default)]
+    preferred_strategy: TranslationStrategy,
     #[serde(default)]
     version: u64,
 }
@@ -26,6 +29,7 @@ impl TranslationConfiguration {
         Self {
             source: Some(pair.source().clone()),
             target: pair.target().cloned(),
+            preferred_strategy: TranslationStrategy::default(),
             version: 0,
         }
     }
@@ -55,6 +59,12 @@ impl TranslationConfiguration {
     }
 
     #[must_use]
+    /// Returns the preferred Translation.framework strategy.
+    pub const fn preferred_strategy(&self) -> TranslationStrategy {
+        self.preferred_strategy
+    }
+
+    #[must_use]
     /// Returns the invalidation version tracked for this configuration.
     pub const fn version(&self) -> u64 {
         self.version
@@ -68,6 +78,11 @@ impl TranslationConfiguration {
     /// Sets the target language.
     pub fn set_target(&mut self, target: Option<Language>) {
         self.target = target;
+    }
+
+    /// Sets the preferred Translation.framework strategy.
+    pub fn set_preferred_strategy(&mut self, preferred_strategy: TranslationStrategy) {
+        self.preferred_strategy = preferred_strategy;
     }
 
     /// Clears the source language.
@@ -96,6 +111,13 @@ impl TranslationConfiguration {
     /// Returns a copy with the given target language.
     pub fn with_target(mut self, target: impl Into<Language>) -> Self {
         self.set_target(Some(target.into()));
+        self
+    }
+
+    #[must_use]
+    /// Returns a copy with the given preferred strategy.
+    pub fn with_preferred_strategy(mut self, preferred_strategy: TranslationStrategy) -> Self {
+        self.set_preferred_strategy(preferred_strategy);
         self
     }
 

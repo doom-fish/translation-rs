@@ -1,6 +1,6 @@
 [package]
 name = "translation-rs"
-version = "0.3.2"
+version = "0.4.0"
 edition = "2021"
 autotests = false
 license = "MIT OR Apache-2.0"
@@ -102,6 +102,11 @@ harness = false
 [[test]]
 name = "translation_session_tests"
 path = "tests/translation_session_tests.rs"
+harness = false
+
+[[test]]
+name = "translation_strategy_attributed_tests"
+path = "tests/translation_strategy_attributed_tests.rs"
 harness = false
 
 [[test]]

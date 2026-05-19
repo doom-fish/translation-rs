@@ -18,7 +18,17 @@ extern "C" {
     ) -> i32;
 
     pub fn trl_language_availability_new() -> *mut c_void;
+    pub fn trl_language_availability_new_with_preferred_strategy(
+        preferred_strategy: i32,
+        out_token: *mut *mut c_void,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
     pub fn trl_language_availability_release(token: *mut c_void);
+    pub fn trl_language_availability_preferred_strategy(
+        token: *mut c_void,
+        out_strategy: *mut i32,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
     pub fn trl_language_availability_supported_languages_json(
         token: *mut c_void,
         out_languages_json: *mut *mut c_char,
@@ -73,6 +83,11 @@ extern "C" {
         out_value: *mut i32,
         out_error_message: *mut *mut c_char,
     ) -> i32;
+    pub fn trl_session_preferred_strategy(
+        token: *mut c_void,
+        out_strategy: *mut i32,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
     pub fn trl_session_cancel(token: *mut c_void, out_error_message: *mut *mut c_char) -> i32;
     pub fn trl_session_prepare_translation(
         token: *mut c_void,
@@ -98,6 +113,12 @@ extern "C" {
     pub fn trl_session_translate_text_json(
         token: *mut c_void,
         text: *const c_char,
+        out_response_json: *mut *mut c_char,
+        out_error_message: *mut *mut c_char,
+    ) -> i32;
+    pub fn trl_session_translate_attributed_json(
+        token: *mut c_void,
+        attributed_text_json: *const c_char,
         out_response_json: *mut *mut c_char,
         out_error_message: *mut *mut c_char,
     ) -> i32;

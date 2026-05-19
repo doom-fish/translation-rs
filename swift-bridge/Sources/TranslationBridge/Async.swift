@@ -123,9 +123,6 @@ public func trl_session_translations_async(
             requestsJson,
             as: [TRLTranslationRequestPayload].self
         )
-        let requestPayloads = requests.map {
-            (sourceText: $0.sourceText, clientIdentifier: $0.clientIdentifier)
-        }
         let retainedToken = try trlRetainTranslationSessionToken(token)
         Task {
             let boxRef = Unmanaged<TRLTranslationSessionBox>.fromOpaque(
@@ -135,11 +132,21 @@ public func trl_session_translations_async(
             do {
                 #if TRANSLATION_HAS_MACOS26_SDK
                 let box = boxRef.takeUnretainedValue()
-                let sessionRequests = requestPayloads.map {
-                    TranslationSession.Request(
-                        sourceText: $0.sourceText,
-                        clientIdentifier: $0.clientIdentifier
-                    )
+                let sessionRequests: [TranslationSession.Request]
+                if #available(macOS 26.4, *) {
+                    sessionRequests = try requests.map { try trlSessionRequest(from: $0) }
+                } else {
+                    guard requests.allSatisfy({ $0.attributedSourceText == nil }) else {
+                        throw TRLBridgeError.unavailableOnThisMacOS(
+                            "TranslationSession.Request.attributedSourceText requires macOS 26.4+"
+                        )
+                    }
+                    sessionRequests = requests.map {
+                        TranslationSession.Request(
+                            sourceText: $0.sourceText,
+                            clientIdentifier: $0.clientIdentifier
+                        )
+                    }
                 }
                 let responses = try await box.session().translations(from: sessionRequests)
                 let json = try trlEncodeJSON(responses.map(trlTranslationResponsePayload))
