@@ -15,7 +15,6 @@ let package = Package(
     targets: [
         .target(
             name: "TranslationBridge",
-            path: "Sources/TranslationBridge",
-            publicHeadersPath: "include")
+            path: "Sources/TranslationBridge")
     ]
 )

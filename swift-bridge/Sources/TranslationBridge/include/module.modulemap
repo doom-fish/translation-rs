@@ -1,4 +1,0 @@
-module TranslationBridge {
-    header "TranslationBridge.h"
-    export *
-}
