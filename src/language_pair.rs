@@ -73,8 +73,8 @@ impl LanguagePair {
             ffi::trl_language_pair_canonicalize_json(
                 source.as_ptr(),
                 target.as_ref().map_or(ptr::null(), |value| value.as_ptr()),
-                &mut pair_json,
-                &mut err_msg,
+                &raw mut pair_json,
+                &raw mut err_msg,
             )
         };
         if status == ffi::status::OK {

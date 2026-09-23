@@ -69,8 +69,8 @@ impl LanguageAvailability {
         let status = unsafe {
             ffi::trl_language_availability_new_with_preferred_strategy(
                 preferred_strategy.raw(),
-                &mut token,
-                &mut err_msg,
+                &raw mut token,
+                &raw mut err_msg,
             )
         };
         if status == ffi::status::OK && !token.is_null() {
@@ -90,7 +90,11 @@ impl LanguageAvailability {
         let mut raw = 0;
         let mut err_msg: *mut c_char = ptr::null_mut();
         let status = unsafe {
-            ffi::trl_language_availability_preferred_strategy(self.token, &mut raw, &mut err_msg)
+            ffi::trl_language_availability_preferred_strategy(
+                self.token,
+                &raw mut raw,
+                &raw mut err_msg,
+            )
         };
         if status == ffi::status::OK {
             TranslationStrategy::from_raw(raw).ok_or_else(|| {
@@ -116,8 +120,8 @@ impl LanguageAvailability {
         let status = unsafe {
             ffi::trl_language_availability_supported_languages_json(
                 self.token,
-                &mut languages_json,
-                &mut err_msg,
+                &raw mut languages_json,
+                &raw mut err_msg,
             )
         };
         if status == ffi::status::OK {
@@ -165,8 +169,8 @@ impl LanguageAvailability {
                 target_language
                     .as_ref()
                     .map_or(ptr::null(), |language| language.as_ptr()),
-                &mut status_raw,
-                &mut err_msg,
+                &raw mut status_raw,
+                &raw mut err_msg,
             )
         };
         if status == ffi::status::OK {
@@ -205,8 +209,8 @@ impl LanguageAvailability {
                 target_language
                     .as_ref()
                     .map_or(ptr::null(), |language| language.as_ptr()),
-                &mut status_raw,
-                &mut err_msg,
+                &raw mut status_raw,
+                &raw mut err_msg,
             )
         };
         if status == ffi::status::OK {

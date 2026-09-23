@@ -11,7 +11,8 @@ pub fn recognize_language(text: &str) -> Result<Option<Language>, TranslationErr
     let text = to_cstring(text)?;
     let mut language: *mut c_char = ptr::null_mut();
     let mut err_msg: *mut c_char = ptr::null_mut();
-    let status = unsafe { ffi::trl_detect_language(text.as_ptr(), &mut language, &mut err_msg) };
+    let status =
+        unsafe { ffi::trl_detect_language(text.as_ptr(), &raw mut language, &raw mut err_msg) };
     if status != ffi::status::OK {
         return Err(unsafe { error_from_status(status, err_msg) });
     }

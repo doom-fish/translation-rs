@@ -270,7 +270,7 @@ impl TranslationBatchResponse {
         let mut response_json: *mut c_char = ptr::null_mut();
         let mut err_msg: *mut c_char = ptr::null_mut();
         let status = unsafe {
-            ffi::trl_batch_response_next_json(self.token, &mut response_json, &mut err_msg)
+            ffi::trl_batch_response_next_json(self.token, &raw mut response_json, &raw mut err_msg)
         };
         if status != ffi::status::OK {
             let error = unsafe { error_from_status(status, err_msg) };
@@ -325,8 +325,13 @@ impl TranslationSession {
         let configuration_json = json_cstring(&configuration)?;
         let mut token: *mut c_void = ptr::null_mut();
         let mut err_msg: *mut c_char = ptr::null_mut();
-        let status =
-            unsafe { ffi::trl_session_new(configuration_json.as_ptr(), &mut token, &mut err_msg) };
+        let status = unsafe {
+            ffi::trl_session_new(
+                configuration_json.as_ptr(),
+                &raw mut token,
+                &raw mut err_msg,
+            )
+        };
         if status == ffi::status::OK && !token.is_null() {
             Ok(Self {
                 token,
@@ -381,7 +386,7 @@ impl TranslationSession {
         let mut raw = 0;
         let mut err_msg: *mut c_char = ptr::null_mut();
         let status = unsafe {
-            ffi::trl_session_preferred_strategy(self.token, &mut raw, &mut err_msg)
+            ffi::trl_session_preferred_strategy(self.token, &raw mut raw, &raw mut err_msg)
         };
         if status == ffi::status::OK {
             TranslationStrategy::from_raw(raw).ok_or_else(|| {
@@ -407,7 +412,7 @@ impl TranslationSession {
     /// Cancels the underlying Translation.framework session.
     pub fn cancel(&self) -> Result<(), TranslationError> {
         let mut err_msg: *mut c_char = ptr::null_mut();
-        let status = unsafe { ffi::trl_session_cancel(self.token, &mut err_msg) };
+        let status = unsafe { ffi::trl_session_cancel(self.token, &raw mut err_msg) };
         if status == ffi::status::OK {
             Ok(())
         } else {
@@ -418,7 +423,7 @@ impl TranslationSession {
     /// Prepares language resources via `TranslationSession.prepareTranslation()`.
     pub fn prepare_translation(&self) -> Result<(), TranslationError> {
         let mut err_msg: *mut c_char = ptr::null_mut();
-        let status = unsafe { ffi::trl_session_prepare_translation(self.token, &mut err_msg) };
+        let status = unsafe { ffi::trl_session_prepare_translation(self.token, &raw mut err_msg) };
         if status == ffi::status::OK {
             Ok(())
         } else {
@@ -435,8 +440,8 @@ impl TranslationSession {
             ffi::trl_session_translate_text_json(
                 self.token,
                 text.as_ptr(),
-                &mut response_json,
-                &mut err_msg,
+                &raw mut response_json,
+                &raw mut err_msg,
             )
         };
         if status == ffi::status::OK {
@@ -458,8 +463,8 @@ impl TranslationSession {
             ffi::trl_session_translate_attributed_json(
                 self.token,
                 text_json.as_ptr(),
-                &mut response_json,
-                &mut err_msg,
+                &raw mut response_json,
+                &raw mut err_msg,
             )
         };
         if status == ffi::status::OK {
@@ -481,8 +486,8 @@ impl TranslationSession {
             ffi::trl_session_translate_batch_json(
                 self.token,
                 requests_json.as_ptr(),
-                &mut responses_json,
-                &mut err_msg,
+                &raw mut responses_json,
+                &raw mut err_msg,
             )
         };
         if status == ffi::status::OK {
@@ -504,8 +509,8 @@ impl TranslationSession {
             ffi::trl_session_translate_batch_stream_json(
                 self.token,
                 requests_json.as_ptr(),
-                &mut batch_token,
-                &mut err_msg,
+                &raw mut batch_token,
+                &raw mut err_msg,
             )
         };
         if status == ffi::status::OK && !batch_token.is_null() {
@@ -524,7 +529,7 @@ impl TranslationSession {
     ) -> Result<bool, TranslationError> {
         let mut value = 0;
         let mut err_msg: *mut c_char = ptr::null_mut();
-        let status = unsafe { ffi_fn(self.token, &mut value, &mut err_msg) };
+        let status = unsafe { ffi_fn(self.token, &raw mut value, &raw mut err_msg) };
         if status == ffi::status::OK {
             Ok(value != 0)
         } else {

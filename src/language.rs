@@ -45,7 +45,11 @@ impl Language {
         let mut canonicalized: *mut c_char = ptr::null_mut();
         let mut err_msg: *mut c_char = ptr::null_mut();
         let status = unsafe {
-            ffi::trl_language_canonicalize(identifier.as_ptr(), &mut canonicalized, &mut err_msg)
+            ffi::trl_language_canonicalize(
+                identifier.as_ptr(),
+                &raw mut canonicalized,
+                &raw mut err_msg,
+            )
         };
         if status == ffi::status::OK {
             unsafe { string_from_ptr(canonicalized, "canonicalized language") }.map(Self::from)
