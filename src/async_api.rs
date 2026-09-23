@@ -39,6 +39,18 @@ fn decode_json<T: DeserializeOwned>(json: &str, context: &str) -> Result<T, Tran
 
 type Outcome<T> = Result<T, TranslationError>;
 
+struct TaskHandle(*mut c_void);
+
+unsafe impl Send for TaskHandle {}
+
+unsafe impl Sync for TaskHandle {}
+
+impl Drop for TaskHandle {
+    fn drop(&mut self) {
+        unsafe { ffi::trl_async_task_cancel(self.0) };
+    }
+}
+
 fn flatten<T>(result: Result<Outcome<T>, String>) -> Outcome<T> {
     result.unwrap_or_else(|message| Err(TranslationError::Unknown(message)))
 }
@@ -151,6 +163,7 @@ extern "C" fn supported_languages_cb(
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct TranslateResponseFuture {
     inner: AsyncCompletionFuture<Outcome<String>>,
+    _task: TaskHandle,
 }
 
 impl fmt::Debug for TranslateResponseFuture {
@@ -174,6 +187,7 @@ impl Future for TranslateResponseFuture {
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct TranslationsBatchFuture {
     inner: AsyncCompletionFuture<Outcome<String>>,
+    _task: TaskHandle,
 }
 
 impl fmt::Debug for TranslationsBatchFuture {
@@ -197,6 +211,7 @@ impl Future for TranslationsBatchFuture {
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct PrepareTranslationFuture {
     inner: AsyncCompletionFuture<Outcome<()>>,
+    _task: TaskHandle,
 }
 
 impl fmt::Debug for PrepareTranslationFuture {
@@ -218,6 +233,7 @@ impl Future for PrepareTranslationFuture {
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct AvailabilityStatusFuture {
     inner: AsyncCompletionFuture<Outcome<i32>>,
+    _task: TaskHandle,
 }
 
 impl fmt::Debug for AvailabilityStatusFuture {
@@ -241,6 +257,7 @@ impl Future for AvailabilityStatusFuture {
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct SupportedLanguagesFuture {
     inner: AsyncCompletionFuture<Outcome<String>>,
+    _task: TaskHandle,
 }
 
 impl fmt::Debug for SupportedLanguagesFuture {
@@ -279,15 +296,20 @@ impl<'a> AsyncTranslationSession<'a> {
         // SAFETY: FFI function is called with valid session token, C string pointer,
         // valid callback pointer, and valid context pointer from AsyncCompletion::create().
         // The callback is panic-safe and will properly complete the future.
+        let mut task = std::ptr::null_mut();
         unsafe {
             ffi::trl_session_translate_async(
                 self.session.raw_token(),
                 text_c.as_ptr(),
                 translate_cb,
                 ctx,
+                &raw mut task,
             );
         }
-        Ok(TranslateResponseFuture { inner: future })
+        Ok(TranslateResponseFuture {
+            inner: future,
+            _task: TaskHandle(task),
+        })
     }
 
     /// Starts `TranslationSession.translations(from:)` as a future.
@@ -300,15 +322,20 @@ impl<'a> AsyncTranslationSession<'a> {
         // SAFETY: FFI function is called with valid session token, C string pointer,
         // valid callback pointer, and valid context pointer from AsyncCompletion::create().
         // The callback is panic-safe and will properly complete the future.
+        let mut task = std::ptr::null_mut();
         unsafe {
             ffi::trl_session_translations_async(
                 self.session.raw_token(),
                 requests_json.as_ptr(),
                 translations_batch_cb,
                 ctx,
+                &raw mut task,
             );
         }
-        Ok(TranslationsBatchFuture { inner: future })
+        Ok(TranslationsBatchFuture {
+            inner: future,
+            _task: TaskHandle(task),
+        })
     }
 
     /// Starts `TranslationSession.prepareTranslation()` as a future.
@@ -317,14 +344,19 @@ impl<'a> AsyncTranslationSession<'a> {
         // SAFETY: FFI function is called with valid session token, valid callback pointer,
         // and valid context pointer from AsyncCompletion::create().
         // The callback is panic-safe and will properly complete the future.
+        let mut task = std::ptr::null_mut();
         unsafe {
             ffi::trl_session_prepare_translation_async(
                 self.session.raw_token(),
                 prepare_translation_cb,
                 ctx,
+                &raw mut task,
             );
         }
-        PrepareTranslationFuture { inner: future }
+        PrepareTranslationFuture {
+            inner: future,
+            _task: TaskHandle(task),
+        }
     }
 }
 
@@ -351,6 +383,7 @@ impl<'a> AsyncLanguageAvailability<'a> {
             .map(|language| crate::private::to_cstring(language.identifier()))
             .transpose()?;
         let (future, ctx) = AsyncCompletion::create();
+        let mut task = std::ptr::null_mut();
         // SAFETY: FFI function is called with valid availability token, C string pointers
         // (source_c and target_c are owned CStrings, target_c is optionally null),
         // valid context pointer from AsyncCompletion::create(), and valid callback pointer.
@@ -364,9 +397,13 @@ impl<'a> AsyncLanguageAvailability<'a> {
                     .map_or(std::ptr::null(), |value| value.as_ptr()),
                 ctx,
                 availability_status_cb,
+                &raw mut task,
             );
         }
-        Ok(AvailabilityStatusFuture { inner: future })
+        Ok(AvailabilityStatusFuture {
+            inner: future,
+            _task: TaskHandle(task),
+        })
     }
 
     /// Starts `LanguageAvailability.supportedLanguages` as a future.
@@ -375,13 +412,18 @@ impl<'a> AsyncLanguageAvailability<'a> {
         // SAFETY: FFI function is called with valid availability token, valid callback pointer,
         // and valid context pointer from AsyncCompletion::create().
         // The callback is panic-safe and will properly complete the future.
+        let mut task = std::ptr::null_mut();
         unsafe {
             ffi::trl_language_availability_supported_languages_async(
                 self.availability.raw_token(),
                 supported_languages_cb,
                 ctx,
+                &raw mut task,
             );
         }
-        SupportedLanguagesFuture { inner: future }
+        SupportedLanguagesFuture {
+            inner: future,
+            _task: TaskHandle(task),
+        }
     }
 }

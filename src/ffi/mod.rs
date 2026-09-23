@@ -6,6 +6,7 @@ pub type TrlAsyncCallback = extern "C" fn(*const c_void, i32, *const c_char, *mu
 
 extern "C" {
     pub fn trl_string_free(s: *mut c_char);
+    pub fn trl_async_task_cancel(handle: *mut c_void);
 
     pub fn trl_language_canonicalize(
         identifier: *const c_char,
@@ -56,11 +57,13 @@ extern "C" {
         target_language: *const c_char,
         ctx: *mut c_void,
         cb: TrlAsyncCallback,
+        out_task: *mut *mut c_void,
     );
     pub fn trl_language_availability_supported_languages_async(
         token: *mut c_void,
         cb: TrlAsyncCallback,
         ctx: *mut c_void,
+        out_task: *mut *mut c_void,
     );
 
     pub fn trl_detect_language(
@@ -100,17 +103,20 @@ extern "C" {
         text: *const c_char,
         cb: TrlAsyncCallback,
         ctx: *mut c_void,
+        out_task: *mut *mut c_void,
     );
     pub fn trl_session_translations_async(
         token: *mut c_void,
         requests_json: *const c_char,
         cb: TrlAsyncCallback,
         ctx: *mut c_void,
+        out_task: *mut *mut c_void,
     );
     pub fn trl_session_prepare_translation_async(
         token: *mut c_void,
         cb: TrlAsyncCallback,
         ctx: *mut c_void,
+        out_task: *mut *mut c_void,
     );
     pub fn trl_session_translate_text_json(
         token: *mut c_void,

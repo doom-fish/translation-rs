@@ -12,6 +12,7 @@ fn main() {
             test_translations_batch_async();
             test_prepare_translation_async();
             test_async_errors_match_sync_errors();
+            test_dropping_pending_futures_cancels_them();
         } else {
             println!("INFO: Skipping session async tests (require macOS 26+)");
         }
@@ -188,6 +189,54 @@ fn test_async_errors_match_sync_errors() {
         assert_eq!(async_error, sync_error, "{source}->{target} {text:?}");
     }
     println!("PASS test_async_errors_match_sync_errors");
+}
+
+#[cfg(target_os = "macos")]
+fn test_dropping_pending_futures_cancels_them() {
+    use std::time::{Duration, Instant};
+
+    use translation::async_api::AsyncTranslationSession;
+    use translation::{TranslationRequest, TranslationSession, TranslationSessionConfiguration};
+
+    let session = TranslationSession::new(TranslationSessionConfiguration::new("en", "fr"))
+        .expect("session");
+    let async_session = AsyncTranslationSession::new(&session);
+    let requests: Vec<_> = (0..20)
+        .map(|index| TranslationRequest::new(format!("This is sentence number {index}.")))
+        .collect();
+    drop(async_session.translations(&requests).expect("batch future"));
+    drop(async_session.translate("Good evening").expect("translate future"));
+    drop(async_session.prepare_translation());
+
+    let settle = Instant::now() + Duration::from_millis(500);
+    while Instant::now() < settle {
+        pump_main_run_loop();
+    }
+
+    match block_on_with_main_run_loop(async_session.translate("Hello").expect("translate future")) {
+        Ok(response) => assert!(!response.target_text().is_empty()),
+        Err(error) => println!("INFO test_dropping_pending_futures_cancels_them: {error}"),
+    }
+    println!("PASS test_dropping_pending_futures_cancels_them");
+}
+
+#[cfg(target_os = "macos")]
+fn pump_main_run_loop() {
+    use std::ffi::c_void;
+
+    #[link(name = "CoreFoundation", kind = "framework")]
+    unsafe extern "C" {
+        static kCFRunLoopDefaultMode: *const c_void;
+        fn CFRunLoopRunInMode(
+            mode: *const c_void,
+            seconds: f64,
+            return_after_source_handled: u8,
+        ) -> i32;
+    }
+
+    unsafe {
+        let _ = CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.01, 1);
+    }
 }
 
 #[cfg(target_os = "macos")]

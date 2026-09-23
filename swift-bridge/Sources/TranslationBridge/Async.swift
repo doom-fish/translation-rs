@@ -5,6 +5,20 @@ public typealias TRLAsyncCallback = @convention(c) (
     UnsafeRawPointer?, Int32, UnsafePointer<CChar>?, UnsafeMutableRawPointer
 ) -> Void
 
+final class TRLTaskHandle {
+    let task: Task<Void, Never>
+
+    init(_ task: Task<Void, Never>) {
+        self.task = task
+    }
+}
+
+@_cdecl("trl_async_task_cancel")
+public func trl_async_task_cancel(_ handle: UnsafeMutableRawPointer?) {
+    guard let handle else { return }
+    Unmanaged<TRLTaskHandle>.fromOpaque(UnsafeRawPointer(handle)).takeRetainedValue().task.cancel()
+}
+
 @inline(__always)
 private func trlAsyncFail(
     _ error: Error,
@@ -47,7 +61,8 @@ public func trl_session_translate_async(
     _ token: UnsafeMutableRawPointer?,
     _ text: UnsafePointer<CChar>?,
     _ cb: @escaping TRLAsyncCallback,
-    _ ctx: UnsafeMutableRawPointer
+    _ ctx: UnsafeMutableRawPointer,
+    _ outTask: UnsafeMutablePointer<UnsafeMutableRawPointer?>?
 ) {
     do {
         guard #available(macOS 26.0, *) else {
@@ -57,7 +72,7 @@ public func trl_session_translate_async(
         }
         let textString = try trlRequireString(text, field: "text")
         let retainedToken = try trlRetainTranslationSessionToken(token)
-        Task {
+        let task = Task {
             let boxRef = Unmanaged<TRLTranslationSessionBox>.fromOpaque(
                 UnsafeRawPointer(retainedToken)
             )
@@ -79,7 +94,9 @@ public func trl_session_translate_async(
                 trlAsyncFail(error, cb, ctx)
             }
         }
+        outTask?.pointee = trlRetain(TRLTaskHandle(task))
     } catch {
+        outTask?.pointee = nil
         trlAsyncFail(error, cb, ctx)
     }
 }
@@ -89,7 +106,8 @@ public func trl_session_translations_async(
     _ token: UnsafeMutableRawPointer?,
     _ requestsJson: UnsafePointer<CChar>?,
     _ cb: @escaping TRLAsyncCallback,
-    _ ctx: UnsafeMutableRawPointer
+    _ ctx: UnsafeMutableRawPointer,
+    _ outTask: UnsafeMutablePointer<UnsafeMutableRawPointer?>?
 ) {
     do {
         guard #available(macOS 26.0, *) else {
@@ -102,7 +120,7 @@ public func trl_session_translations_async(
             as: [TRLTranslationRequestPayload].self
         )
         let retainedToken = try trlRetainTranslationSessionToken(token)
-        Task {
+        let task = Task {
             let boxRef = Unmanaged<TRLTranslationSessionBox>.fromOpaque(
                 UnsafeRawPointer(retainedToken)
             )
@@ -140,7 +158,9 @@ public func trl_session_translations_async(
                 trlAsyncFail(error, cb, ctx)
             }
         }
+        outTask?.pointee = trlRetain(TRLTaskHandle(task))
     } catch {
+        outTask?.pointee = nil
         trlAsyncFail(error, cb, ctx)
     }
 }
@@ -149,7 +169,8 @@ public func trl_session_translations_async(
 public func trl_session_prepare_translation_async(
     _ token: UnsafeMutableRawPointer?,
     _ cb: @escaping TRLAsyncCallback,
-    _ ctx: UnsafeMutableRawPointer
+    _ ctx: UnsafeMutableRawPointer,
+    _ outTask: UnsafeMutablePointer<UnsafeMutableRawPointer?>?
 ) {
     do {
         guard #available(macOS 26.0, *) else {
@@ -158,7 +179,7 @@ public func trl_session_prepare_translation_async(
             )
         }
         let retainedToken = try trlRetainTranslationSessionToken(token)
-        Task {
+        let task = Task {
             let boxRef = Unmanaged<TRLTranslationSessionBox>.fromOpaque(
                 UnsafeRawPointer(retainedToken)
             )
@@ -177,7 +198,9 @@ public func trl_session_prepare_translation_async(
                 trlAsyncFail(error, cb, ctx)
             }
         }
+        outTask?.pointee = trlRetain(TRLTaskHandle(task))
     } catch {
+        outTask?.pointee = nil
         trlAsyncFail(error, cb, ctx)
     }
 }
@@ -188,7 +211,8 @@ public func trl_language_availability_status_async(
     _ sourceLanguage: UnsafePointer<CChar>?,
     _ targetLanguage: UnsafePointer<CChar>?,
     _ ctx: UnsafeMutableRawPointer,
-    _ cb: @escaping TRLAsyncCallback
+    _ cb: @escaping TRLAsyncCallback,
+    _ outTask: UnsafeMutablePointer<UnsafeMutableRawPointer?>?
 ) {
     do {
         guard #available(macOS 15.0, *) else {
@@ -200,7 +224,7 @@ public func trl_language_availability_status_async(
         let target = targetLanguage.map(String.init(cString:))
         let availability = try trlLanguageAvailabilityBox(token).availability
         let retainedToken = try trlRetainLanguageAvailabilityToken(token)
-        Task {
+        let task = Task {
             let boxRef = Unmanaged<TRLLanguageAvailabilityBox>.fromOpaque(
                 UnsafeRawPointer(retainedToken)
             )
@@ -212,7 +236,9 @@ public func trl_language_availability_status_async(
             let rawStatus = trlAvailabilityStatusRaw(status)
             cb(UnsafeRawPointer(bitPattern: Int(rawStatus) + 1), TRL_OK, nil, ctx)
         }
+        outTask?.pointee = trlRetain(TRLTaskHandle(task))
     } catch {
+        outTask?.pointee = nil
         trlAsyncFail(error, cb, ctx)
     }
 }
@@ -221,7 +247,8 @@ public func trl_language_availability_status_async(
 public func trl_language_availability_supported_languages_async(
     _ token: UnsafeMutableRawPointer?,
     _ cb: @escaping TRLAsyncCallback,
-    _ ctx: UnsafeMutableRawPointer
+    _ ctx: UnsafeMutableRawPointer,
+    _ outTask: UnsafeMutablePointer<UnsafeMutableRawPointer?>?
 ) {
     do {
         guard #available(macOS 15.0, *) else {
@@ -231,7 +258,7 @@ public func trl_language_availability_supported_languages_async(
         }
         let availability = try trlLanguageAvailabilityBox(token).availability
         let retainedToken = try trlRetainLanguageAvailabilityToken(token)
-        Task {
+        let task = Task {
             let boxRef = Unmanaged<TRLLanguageAvailabilityBox>.fromOpaque(
                 UnsafeRawPointer(retainedToken)
             )
@@ -246,7 +273,9 @@ public func trl_language_availability_supported_languages_async(
                 trlAsyncFail(error, cb, ctx)
             }
         }
+        outTask?.pointee = trlRetain(TRLTaskHandle(task))
     } catch {
+        outTask?.pointee = nil
         trlAsyncFail(error, cb, ctx)
     }
 }
