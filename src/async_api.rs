@@ -20,13 +20,14 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use doom_fish_utils::completion::{error_from_cstr, AsyncCompletion, AsyncCompletionFuture};
+use doom_fish_utils::completion::{AsyncCompletion, AsyncCompletionFuture};
 use doom_fish_utils::panic_safe::catch_user_panic;
 use serde::de::DeserializeOwned;
 
 use crate::ffi;
 use crate::language::Language;
 use crate::language_availability::{LanguageAvailability, LanguageAvailabilityStatus};
+use crate::private::error_from_payload;
 use crate::translation_error::TranslationError;
 use crate::translation_response::TranslationResponse;
 use crate::translation_session::{TranslationRequest, TranslationSession};
@@ -36,107 +37,120 @@ fn decode_json<T: DeserializeOwned>(json: &str, context: &str) -> Result<T, Tran
         .map_err(|error| TranslationError::Unknown(format!("failed to decode {context}: {error}")))
 }
 
+type Outcome<T> = Result<T, TranslationError>;
+
+fn flatten<T>(result: Result<Outcome<T>, String>) -> Outcome<T> {
+    result.unwrap_or_else(|message| Err(TranslationError::Unknown(message)))
+}
+
+unsafe fn async_error(status: i32, error: *const c_char) -> TranslationError {
+    let payload = if error.is_null() {
+        format!("Swift bridge call failed with status code {status}")
+    } else {
+        unsafe { CStr::from_ptr(error) }
+            .to_string_lossy()
+            .into_owned()
+    };
+    error_from_payload(status, payload)
+}
+
 fn complete_json_callback(
     result: *const c_void,
+    status: i32,
     error: *const c_char,
     ctx: *mut c_void,
     context: &str,
 ) {
-    // SAFETY: This callback is called from the Swift bridge with valid pointers.
-    // The error pointer and result pointer come from Swift and are either valid
-    // C strings / pointers or null. We validate nullness before dereferencing.
-    if !error.is_null() {
-        let msg = unsafe { error_from_cstr(error) };
-        unsafe { AsyncCompletion::<String>::complete_err(ctx, msg) };
-    } else if !result.is_null() {
-        let json = unsafe { CStr::from_ptr(result.cast::<c_char>()) }
-            .to_string_lossy()
-            .into_owned();
-        unsafe { AsyncCompletion::complete_ok(ctx, json) };
+    let outcome: Outcome<String> = if status != ffi::status::OK {
+        Err(unsafe { async_error(status, error) })
+    } else if result.is_null() {
+        Err(TranslationError::Unknown(format!(
+            "null result pointer for {context}"
+        )))
     } else {
-        unsafe {
-            AsyncCompletion::<String>::complete_err(
-                ctx,
-                format!("null result pointer for {context}"),
-            );
-        };
-    }
+        Ok(unsafe { CStr::from_ptr(result.cast::<c_char>()) }
+            .to_string_lossy()
+            .into_owned())
+    };
+    unsafe { AsyncCompletion::complete_ok(ctx, outcome) };
 }
 
-extern "C" fn translate_cb(result: *const c_void, error: *const c_char, ctx: *mut c_void) {
+extern "C" fn translate_cb(
+    result: *const c_void,
+    status: i32,
+    error: *const c_char,
+    ctx: *mut c_void,
+) {
     catch_user_panic("translate_cb", || {
-        complete_json_callback(result, error, ctx, "translation response");
+        complete_json_callback(result, status, error, ctx, "translation response");
     });
 }
 
-extern "C" fn translations_batch_cb(result: *const c_void, error: *const c_char, ctx: *mut c_void) {
+extern "C" fn translations_batch_cb(
+    result: *const c_void,
+    status: i32,
+    error: *const c_char,
+    ctx: *mut c_void,
+) {
     catch_user_panic("translations_batch_cb", || {
-        complete_json_callback(result, error, ctx, "translation batch responses");
+        complete_json_callback(result, status, error, ctx, "translation batch responses");
     });
 }
 
 extern "C" fn prepare_translation_cb(
     _result: *const c_void,
+    status: i32,
     error: *const c_char,
     ctx: *mut c_void,
 ) {
     catch_user_panic("prepare_translation_cb", || {
-        if error.is_null() {
-            unsafe { AsyncCompletion::<()>::complete_ok(ctx, ()) };
+        let outcome: Outcome<()> = if status == ffi::status::OK {
+            Ok(())
         } else {
-            let msg = unsafe { error_from_cstr(error) };
-            unsafe { AsyncCompletion::<()>::complete_err(ctx, msg) };
-        }
+            Err(unsafe { async_error(status, error) })
+        };
+        unsafe { AsyncCompletion::complete_ok(ctx, outcome) };
     });
 }
 
 extern "C" fn availability_status_cb(
     result: *const c_void,
+    status: i32,
     error: *const c_char,
     ctx: *mut c_void,
 ) {
     catch_user_panic("availability_status_cb", || {
-        if !error.is_null() {
-            let msg = unsafe { error_from_cstr(error) };
-            unsafe { AsyncCompletion::<i32>::complete_err(ctx, msg) };
-        } else if !result.is_null() {
-            let raw_status = (result as usize)
+        let outcome: Outcome<i32> = if status == ffi::status::OK {
+            (result as usize)
                 .checked_sub(1)
-                .and_then(|value| i32::try_from(value).ok());
-            match raw_status {
-                Some(status) => unsafe { AsyncCompletion::complete_ok(ctx, status) },
-                None => unsafe {
-                    AsyncCompletion::<i32>::complete_err(
-                        ctx,
+                .and_then(|value| i32::try_from(value).ok())
+                .ok_or_else(|| {
+                    TranslationError::Unknown(
                         "invalid language availability status result".to_owned(),
-                    );
-                },
-            }
+                    )
+                })
         } else {
-            unsafe {
-                AsyncCompletion::<i32>::complete_err(
-                    ctx,
-                    "null result pointer for language availability status".to_owned(),
-                );
-            };
-        }
+            Err(unsafe { async_error(status, error) })
+        };
+        unsafe { AsyncCompletion::complete_ok(ctx, outcome) };
     });
 }
 
 extern "C" fn supported_languages_cb(
     result: *const c_void,
+    status: i32,
     error: *const c_char,
     ctx: *mut c_void,
 ) {
     catch_user_panic("supported_languages_cb", || {
-        complete_json_callback(result, error, ctx, "supported languages");
+        complete_json_callback(result, status, error, ctx, "supported languages");
     });
 }
 
 /// Future returned by [`AsyncTranslationSession::translate`].
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct TranslateResponseFuture {
-    inner: AsyncCompletionFuture<String>,
+    inner: AsyncCompletionFuture<Outcome<String>>,
 }
 
 impl fmt::Debug for TranslateResponseFuture {
@@ -151,9 +165,7 @@ impl Future for TranslateResponseFuture {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut self.inner).poll(cx).map(|result| {
-            result
-                .map_err(TranslationError::Framework)
-                .and_then(|json| decode_json(&json, "translation response"))
+            flatten(result).and_then(|json| decode_json(&json, "translation response"))
         })
     }
 }
@@ -161,7 +173,7 @@ impl Future for TranslateResponseFuture {
 /// Future returned by [`AsyncTranslationSession::translations`].
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct TranslationsBatchFuture {
-    inner: AsyncCompletionFuture<String>,
+    inner: AsyncCompletionFuture<Outcome<String>>,
 }
 
 impl fmt::Debug for TranslationsBatchFuture {
@@ -176,9 +188,7 @@ impl Future for TranslationsBatchFuture {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut self.inner).poll(cx).map(|result| {
-            result
-                .map_err(TranslationError::Framework)
-                .and_then(|json| decode_json(&json, "translation batch responses"))
+            flatten(result).and_then(|json| decode_json(&json, "translation batch responses"))
         })
     }
 }
@@ -186,7 +196,7 @@ impl Future for TranslationsBatchFuture {
 /// Future returned by [`AsyncTranslationSession::prepare_translation`].
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct PrepareTranslationFuture {
-    inner: AsyncCompletionFuture<()>,
+    inner: AsyncCompletionFuture<Outcome<()>>,
 }
 
 impl fmt::Debug for PrepareTranslationFuture {
@@ -200,16 +210,14 @@ impl Future for PrepareTranslationFuture {
     type Output = Result<(), TranslationError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.inner)
-            .poll(cx)
-            .map(|result| result.map_err(TranslationError::Framework))
+        Pin::new(&mut self.inner).poll(cx).map(flatten)
     }
 }
 
 /// Future returned by [`AsyncLanguageAvailability::status`].
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct AvailabilityStatusFuture {
-    inner: AsyncCompletionFuture<i32>,
+    inner: AsyncCompletionFuture<Outcome<i32>>,
 }
 
 impl fmt::Debug for AvailabilityStatusFuture {
@@ -223,18 +231,16 @@ impl Future for AvailabilityStatusFuture {
     type Output = Result<LanguageAvailabilityStatus, TranslationError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.inner).poll(cx).map(|result| {
-            result
-                .map(LanguageAvailabilityStatus::from_raw)
-                .map_err(TranslationError::Framework)
-        })
+        Pin::new(&mut self.inner)
+            .poll(cx)
+            .map(|result| flatten(result).map(LanguageAvailabilityStatus::from_raw))
     }
 }
 
 /// Future returned by [`AsyncLanguageAvailability::supported_languages`].
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct SupportedLanguagesFuture {
-    inner: AsyncCompletionFuture<String>,
+    inner: AsyncCompletionFuture<Outcome<String>>,
 }
 
 impl fmt::Debug for SupportedLanguagesFuture {
@@ -249,9 +255,7 @@ impl Future for SupportedLanguagesFuture {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut self.inner).poll(cx).map(|result| {
-            result
-                .map_err(TranslationError::Framework)
-                .and_then(|json| decode_json(&json, "supported languages"))
+            flatten(result).and_then(|json| decode_json(&json, "supported languages"))
         })
     }
 }

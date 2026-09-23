@@ -11,6 +11,7 @@ fn main() {
             test_translate_async();
             test_translations_batch_async();
             test_prepare_translation_async();
+            test_async_errors_match_sync_errors();
         } else {
             println!("INFO: Skipping session async tests (require macOS 26+)");
         }
@@ -153,6 +154,40 @@ fn test_prepare_translation_async() {
         Ok(()) => println!("PASS test_prepare_translation_async"),
         Err(error) => println!("INFO test_prepare_translation_async error: {error}"),
     }
+}
+
+#[cfg(target_os = "macos")]
+fn test_async_errors_match_sync_errors() {
+    use translation::async_api::AsyncTranslationSession;
+    use translation::{TranslationError, TranslationSession, TranslationSessionConfiguration};
+
+    for (source, target, text) in [
+        ("en", "es", ""),
+        ("en", "en", "hello"),
+        ("en", "zz", "hello"),
+        ("zz", "en", "hello"),
+    ] {
+        let session = TranslationSession::new(TranslationSessionConfiguration::new(source, target))
+            .expect("session");
+        let sync_error = session
+            .translate(text)
+            .expect_err("sync translation should fail");
+        let async_error = block_on_with_main_run_loop(
+            AsyncTranslationSession::new(&session)
+                .translate(text)
+                .expect("translate future"),
+        )
+        .expect_err("async translation should fail");
+        assert!(
+            !matches!(
+                async_error,
+                TranslationError::Framework(_) | TranslationError::Unknown(_)
+            ),
+            "{source}->{target} {text:?}: untyped async error {async_error:?}"
+        );
+        assert_eq!(async_error, sync_error, "{source}->{target} {text:?}");
+    }
+    println!("PASS test_async_errors_match_sync_errors");
 }
 
 #[cfg(target_os = "macos")]

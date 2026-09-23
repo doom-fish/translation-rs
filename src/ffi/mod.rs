@@ -2,6 +2,8 @@
 
 use core::ffi::{c_char, c_void};
 
+pub type TrlAsyncCallback = extern "C" fn(*const c_void, i32, *const c_char, *mut c_void);
+
 extern "C" {
     pub fn trl_string_free(s: *mut c_char);
 
@@ -53,11 +55,11 @@ extern "C" {
         source_language: *const c_char,
         target_language: *const c_char,
         ctx: *mut c_void,
-        cb: extern "C" fn(*const c_void, *const c_char, *mut c_void),
+        cb: TrlAsyncCallback,
     );
     pub fn trl_language_availability_supported_languages_async(
         token: *mut c_void,
-        cb: extern "C" fn(*const c_void, *const c_char, *mut c_void),
+        cb: TrlAsyncCallback,
         ctx: *mut c_void,
     );
 
@@ -96,18 +98,18 @@ extern "C" {
     pub fn trl_session_translate_async(
         token: *mut c_void,
         text: *const c_char,
-        cb: extern "C" fn(*const c_void, *const c_char, *mut c_void),
+        cb: TrlAsyncCallback,
         ctx: *mut c_void,
     );
     pub fn trl_session_translations_async(
         token: *mut c_void,
         requests_json: *const c_char,
-        cb: extern "C" fn(*const c_void, *const c_char, *mut c_void),
+        cb: TrlAsyncCallback,
         ctx: *mut c_void,
     );
     pub fn trl_session_prepare_translation_async(
         token: *mut c_void,
-        cb: extern "C" fn(*const c_void, *const c_char, *mut c_void),
+        cb: TrlAsyncCallback,
         ctx: *mut c_void,
     );
     pub fn trl_session_translate_text_json(

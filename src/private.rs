@@ -80,7 +80,10 @@ pub unsafe fn parse_json_ptr<T: DeserializeOwned>(
 pub unsafe fn error_from_status(status: i32, err_msg: *mut c_char) -> TranslationError {
     let payload = take_optional_string(err_msg)
         .unwrap_or_else(|| format!("Swift bridge call failed with status code {status}"));
+    error_from_payload(status, payload)
+}
 
+pub fn error_from_payload(status: i32, payload: String) -> TranslationError {
     if let Ok(parsed) = serde_json::from_str::<BridgeErrorPayload>(&payload) {
         return TranslationError::from_status_parts(
             status,
