@@ -2,7 +2,7 @@
 
 Safe Rust bindings for Apple's `Translation.framework` on macOS, plus typed language helpers for canonical language identifiers, language pairs, translation configuration state, translation responses, translation errors, and NaturalLanguage-backed language recognition.
 
-> **Status:** v0.3.0 covers all public `Translation.framework` symbols in the current macOS SDK and adds a Tier-1 `async_api` module for Future-based translation and availability workflows.
+> **Status:** covers all public `Translation.framework` symbols in the macOS 26.5 SDK (unchanged in 27.0), with synchronous calls and an optional `async_api` module of executor-agnostic futures.
 
 ## Quick start
 
@@ -51,6 +51,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 - The crate weak-links `Translation.framework`, so the typed `Language`, `LanguagePair`, `TranslationConfiguration`, `TranslationResponse`, and `LanguageRecognition` helpers work on macOS 14+.
 - `LanguageAvailability` requires macOS 15+.
 - Manual `TranslationSession` construction is currently available on macOS 26+ through `TranslationSession(installedSource:target:)`; the crate surfaces those APIs and returns structured `TranslationError` values on older systems.
+
+## Threading and timeouts
+
+- `TranslationSession` is not bound to the main actor, and the synchronous calls no longer hop to it. Translation.framework still finishes its work on the main queue, though. On the main thread a synchronous call pumps the main run loop while it waits. On any other thread it needs the main thread to run its run loop (an AppKit app, or a CLI whose main thread calls `CFRunLoopRun`). If the main queue is not serviced within 10 seconds, the call returns `TranslationError::TimedOut` naming the main thread.
+- A synchronous call gives up after 60 seconds with `TranslationError::TimedOut` and cancels its work. Use the streaming batch API for long batches: `TranslationBatchResponse::try_next` waits up to 60 seconds per response, and after a `TimedOut` the next call keeps waiting for the same response, so nothing is lost.
+- `#[tokio::main]` and other executors that block the main thread starve Translation. Run the executor on another thread and keep the main thread in its run loop.
+- The async futures complete only while the main thread runs its run loop. Dropping a future cancels its Swift `Task`. Their errors use the same typed `TranslationError` variants as the synchronous calls, such as `NotInstalled` and `UnsupportedLanguagePairing`.
 
 ## Async API
 

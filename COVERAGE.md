@@ -3,7 +3,7 @@
 Audited against:
 
 - SDK: `MacOSX.sdk/System/Library/Frameworks/Translation.framework/Versions/A/Modules/Translation.swiftmodule/arm64e-apple-macos.swiftinterface`
-- Crate: `translation-rs` v0.2.0
+- Crate: `translation-rs` v0.2.0; the rows were re-checked for v0.5.0 against the macOS 26.5 swiftinterface, and the surface is unchanged (0.5.0 changes threading, timeouts and async error typing, not the wrapped surface)
 
 ## LanguageAvailability
 

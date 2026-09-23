@@ -1,5 +1,7 @@
 # translation-rs coverage audit v2 (vs MacOSX26.2.sdk)
 
+This older audit counts 58 symbols in the 26.2 SDK. `COVERAGE_AUDIT.md` supersedes it with a 26.5 recount of 75 symbols.
+
 SDK_PUBLIC_SYMBOLS: 58
 VERIFIED: 58
 GAPS: 0
