@@ -4,6 +4,15 @@ Safe Rust bindings for Apple's `Translation.framework` on macOS, plus typed lang
 
 > **Status:** covers all public `Translation.framework` symbols in the macOS 26.5 SDK (unchanged in 27.0), with synchronous calls and an optional `async_api` module of executor-agnostic futures.
 
+## Installation
+
+```toml
+[dependencies]
+translation-rs = "0.5"
+```
+
+The library is imported as `translation`.
+
 ## Quick start
 
 ```rust,no_run
@@ -64,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 Enable the `async` feature to use executor-agnostic futures backed by Swift `Task` thunks and `doom-fish-utils` completion helpers:
 
 ```toml
-translation-rs = { version = "0.3", features = ["async"] }
+translation-rs = { version = "0.5", features = ["async"] }
 ```
 
 The async surface currently includes:

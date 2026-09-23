@@ -1,5 +1,46 @@
 # Changelog
 
+All notable changes to `translation-rs` are documented here.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.5.0] - Unreleased
+
+### Fixed
+
+- Synchronous calls no longer hop to the main actor and poll the run loop for 60 s.
+  `TranslationSession` is not main-actor isolated, so the work now runs in a plain
+  `Task`; the caller blocks on a semaphore (pumping the run loop only on the main
+  thread) and a timed-out `Task` is cancelled. Translation.framework itself still
+  needs the main queue, so an off-main call now fails after 10 s with a `TimedOut`
+  error naming the main thread when nothing services it, instead of a generic 60 s
+  timeout.
+- Async errors are typed: futures return the same `TranslationError` variants as the
+  synchronous calls (`NotInstalled`, `UnsupportedLanguagePairing`, ...) instead of
+  `Framework`.
+- A `TranslationBatchResponse::try_next` timeout no longer loses a response: the
+  pending `next()` stays in flight and the following call waits for it, instead of an
+  orphaned task consuming the response and a retry overlapping `iterator.next()` on
+  the same iterator.
+- Dropping an async future cancels its Swift `Task` instead of letting the
+  translation run to completion.
+
+### Changed
+
+- **Breaking:** `TranslationBatchResponse::try_next` and its `Iterator` impl treat
+  `TranslationError::TimedOut` as retryable instead of ending the stream.
+- **Breaking:** the raw async callback type (`ffi::TrlAsyncCallback`) takes an extra
+  `i32` status argument, and every raw `*_async` export takes an out-pointer for a
+  task handle that `ffi::trl_async_task_cancel` cancels and releases.
+- `rust-version` is 1.82 (was 1.76), and `doom-fish-utils` is required at
+  `>=0.4.1, <0.5`.
+- The Swift bridge no longer ships a vestigial C header or `publicHeadersPath`.
+
+### Added
+
+- README section on threading, timeouts and async errors.
+
 ## [0.4.1] - 2026-05-20
 
 - Widen `doom-fish-utils` dependency bound to `<0.4` so the 0.3.x SPSC-ring release resolves cleanly. No source changes.
