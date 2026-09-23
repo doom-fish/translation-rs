@@ -52,19 +52,73 @@ func trlSessionRequest(
 }
 
 @available(macOS 26.0, *)
-final class TRLTranslationBatchResponseBox: NSObject {
+final class TRLBatchIteratorHolder: @unchecked Sendable {
     private var iterator: TranslationSession.BatchResponse.AsyncIterator
 
-    init(session: TranslationSession, requests: [TranslationSession.Request]) {
-        iterator = session.translate(batch: requests).makeAsyncIterator()
-        super.init()
+    init(_ iterator: TranslationSession.BatchResponse.AsyncIterator) {
+        self.iterator = iterator
     }
 
-    func nextResponse() async throws -> TRLTranslationResponsePayload? {
+    func advance() async throws -> TRLTranslationResponsePayload? {
         guard let response = try await iterator.next() else {
             return nil
         }
         return trlTranslationResponsePayload(from: response)
+    }
+}
+
+final class TRLPendingBatchResponse: @unchecked Sendable {
+    let semaphore = DispatchSemaphore(value: 0)
+    let result = TRLAsyncResultBox<TRLTranslationResponsePayload?>()
+    var task: Task<Void, Never>?
+}
+
+@available(macOS 26.0, *)
+final class TRLTranslationBatchResponseBox: NSObject {
+    private let holder: TRLBatchIteratorHolder
+    private let lock = NSLock()
+    private var pending: TRLPendingBatchResponse?
+
+    init(session: TranslationSession, requests: [TranslationSession.Request]) {
+        holder = TRLBatchIteratorHolder(session.translate(batch: requests).makeAsyncIterator())
+        super.init()
+    }
+
+    func nextResponse(timeoutSeconds: TimeInterval) throws -> TRLTranslationResponsePayload? {
+        lock.lock()
+        let current: TRLPendingBatchResponse
+        if let pending {
+            current = pending
+        } else {
+            current = TRLPendingBatchResponse()
+            let holder = holder
+            current.task = Task {
+                do {
+                    current.result.set(.success(try await holder.advance()))
+                } catch {
+                    current.result.set(.failure(error))
+                }
+                current.semaphore.signal()
+            }
+            pending = current
+        }
+        lock.unlock()
+
+        try trlWait(current.semaphore, timeoutSeconds: timeoutSeconds)
+
+        lock.lock()
+        if pending === current {
+            pending = nil
+        }
+        lock.unlock()
+        guard let result = current.result.get() else {
+            throw TRLBridgeError.unknown("missing batch response after the task completed")
+        }
+        return try result.get()
+    }
+
+    deinit {
+        pending?.task?.cancel()
     }
 }
 #endif
@@ -473,9 +527,7 @@ public func trl_batch_response_next_json(
         }
         #if TRANSLATION_HAS_MACOS26_SDK
         let box: TRLTranslationBatchResponseBox = trlBorrow(token)
-        let payload = try trl_block_on_async {
-            try await box.nextResponse()
-        }
+        let payload = try box.nextResponse(timeoutSeconds: 60)
         outResponseJson.pointee = try payload
             .map(trlEncodeJSON)
             .flatMap(trlCString)

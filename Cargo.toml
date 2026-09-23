@@ -110,6 +110,11 @@ path = "tests/translation_strategy_attributed_tests.rs"
 harness = false
 
 [[test]]
+name = "batch_stream_retry_tests"
+path = "tests/batch_stream_retry_tests.rs"
+harness = false
+
+[[test]]
 name = "async_api_tests"
 path = "tests/async_api_tests.rs"
 harness = false

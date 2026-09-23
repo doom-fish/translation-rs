@@ -273,8 +273,11 @@ impl TranslationBatchResponse {
             ffi::trl_batch_response_next_json(self.token, &mut response_json, &mut err_msg)
         };
         if status != ffi::status::OK {
-            self.finished = true;
-            return Err(unsafe { error_from_status(status, err_msg) });
+            let error = unsafe { error_from_status(status, err_msg) };
+            if !matches!(error, TranslationError::TimedOut(_)) {
+                self.finished = true;
+            }
+            return Err(error);
         }
         if response_json.is_null() {
             self.finished = true;
@@ -297,14 +300,7 @@ impl Iterator for TranslationBatchResponse {
     type Item = Result<TranslationResponse, TranslationError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.try_next() {
-            Ok(Some(response)) => Some(Ok(response)),
-            Ok(None) => None,
-            Err(error) => {
-                self.finished = true;
-                Some(Err(error))
-            }
-        }
+        self.try_next().transpose()
     }
 }
 
