@@ -88,15 +88,69 @@ final class TRLAsyncResultBox<T>: @unchecked Sendable {
     }
 }
 
+let TRL_MAIN_QUEUE_GRACE_SECONDS: TimeInterval = 10
+
+final class TRLMainQueueProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var serviced = false
+
+    init() {
+        DispatchQueue.main.async { [self] in
+            lock.lock()
+            serviced = true
+            lock.unlock()
+        }
+    }
+
+    var wasServiced: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return serviced
+    }
+}
+
+func trlWait(
+    _ semaphore: DispatchSemaphore,
+    timeoutSeconds: TimeInterval
+) throws {
+    let timedOut = TRLBridgeError.timedOut(
+        "Translation.framework async call timed out after \(Int(timeoutSeconds)) seconds"
+    )
+    if Thread.isMainThread {
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
+        while semaphore.wait(timeout: .now()) == .timedOut {
+            if Date() >= deadline {
+                throw timedOut
+            }
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+        }
+        return
+    }
+    let deadline = DispatchTime.now() + timeoutSeconds
+    let probe = TRLMainQueueProbe()
+    let grace = DispatchTime.now() + min(TRL_MAIN_QUEUE_GRACE_SECONDS, timeoutSeconds)
+    if semaphore.wait(timeout: grace) == .success {
+        return
+    }
+    if !probe.wasServiced {
+        throw TRLBridgeError.timedOut(
+            "Translation.framework needs the main thread to run its run loop, and the main " +
+                "queue was not serviced within \(Int(TRL_MAIN_QUEUE_GRACE_SECONDS)) seconds"
+        )
+    }
+    if semaphore.wait(timeout: deadline) == .timedOut {
+        throw timedOut
+    }
+}
+
 public func trl_block_on_async<T>(
     timeoutSeconds: TimeInterval = 60,
     work: @escaping @Sendable () async throws -> T
 ) throws -> T {
     let semaphore = DispatchSemaphore(value: 0)
     let box = TRLAsyncResultBox<T>()
-    let pollIntervalSeconds: TimeInterval = 0.01
 
-    Task { @MainActor in
+    let task = Task {
         do {
             box.set(.success(try await work()))
         } catch {
@@ -105,18 +159,15 @@ public func trl_block_on_async<T>(
         semaphore.signal()
     }
 
-    let deadline = Date().addingTimeInterval(timeoutSeconds)
-    while box.get() == nil && Date() < deadline {
-        RunLoop.current.run(
-            mode: .default,
-            before: Date().addingTimeInterval(pollIntervalSeconds)
-        )
+    do {
+        try trlWait(semaphore, timeoutSeconds: timeoutSeconds)
+    } catch {
+        task.cancel()
+        throw error
     }
 
     guard let result = box.get() else {
-        throw TRLBridgeError.timedOut(
-            "Translation.framework async call timed out after \(Int(timeoutSeconds)) seconds"
-        )
+        throw TRLBridgeError.unknown("missing async result after the task completed")
     }
     return try result.get()
 }
