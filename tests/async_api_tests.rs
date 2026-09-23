@@ -198,14 +198,18 @@ fn test_dropping_pending_futures_cancels_them() {
     use translation::async_api::AsyncTranslationSession;
     use translation::{TranslationRequest, TranslationSession, TranslationSessionConfiguration};
 
-    let session = TranslationSession::new(TranslationSessionConfiguration::new("en", "fr"))
-        .expect("session");
+    let session =
+        TranslationSession::new(TranslationSessionConfiguration::new("en", "fr")).expect("session");
     let async_session = AsyncTranslationSession::new(&session);
     let requests: Vec<_> = (0..20)
         .map(|index| TranslationRequest::new(format!("This is sentence number {index}.")))
         .collect();
     drop(async_session.translations(&requests).expect("batch future"));
-    drop(async_session.translate("Good evening").expect("translate future"));
+    drop(
+        async_session
+            .translate("Good evening")
+            .expect("translate future"),
+    );
     drop(async_session.prepare_translation());
 
     let settle = Instant::now() + Duration::from_millis(500);
