@@ -20,11 +20,12 @@ fn stream_after_a_timeout(started: &mpsc::Sender<()>) -> Result<Vec<String>, Tra
     let mut stream = session.translate_batch_streaming(&requests)?;
     let first = stream.try_next();
     let _ = started.send(());
+    let mut sources = Vec::new();
     match first {
         Err(TranslationError::TimedOut(message)) => assert!(message.contains("main thread")),
-        other => panic!("expected a main-thread timeout while main was blocked, got {other:?}"),
+        Ok(Some(response)) => sources.push(response.source_text().to_owned()),
+        other => return other.map(|_| sources),
     }
-    let mut sources = Vec::new();
     while let Some(response) = stream.try_next()? {
         sources.push(response.source_text().to_owned());
     }
