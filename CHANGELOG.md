@@ -13,8 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `TranslationSession` is not main-actor isolated, so the work now runs in a plain
   `Task`; the caller blocks on a semaphore (pumping the run loop only on the main
   thread) and a timed-out `Task` is cancelled. Translation.framework itself still
-  needs the main queue, so an off-main call now fails after 10 s with a `TimedOut`
-  error naming the main thread when nothing services it, instead of a generic 60 s
+  needs the main queue, so an off-main call now fails after 10 s with
+  `MainRunLoopNotRunning` when nothing services it, instead of a generic 60 s
   timeout.
 - Async errors are typed: futures return the same `TranslationError` variants as the
   synchronous calls (`NotInstalled`, `UnsupportedLanguagePairing`, ...) instead of
@@ -32,7 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Breaking:** `TranslationBatchResponse::try_next` and its `Iterator` impl treat
-  `TranslationError::TimedOut` as retryable instead of ending the stream.
+  `TranslationError::TimedOut` and `MainRunLoopNotRunning` as retryable instead of
+  ending the stream.
+- **Breaking:** an off-main call that finds the main queue unserviced returns the new
+  `TranslationError::MainRunLoopNotRunning` instead of a `TimedOut` after 60 s.
 - **Breaking:** the raw async callback type (`ffi::TrlAsyncCallback`) takes an extra
   `i32` status argument, and every raw `*_async` export takes an out-pointer for a
   task handle that `ffi::trl_async_task_cancel` cancels and releases.

@@ -5,6 +5,7 @@ let TRL_OK: Int32 = 0
 let TRL_INVALID_ARGUMENT: Int32 = -1
 let TRL_UNAVAILABLE_ON_THIS_MACOS: Int32 = -2
 let TRL_TIMED_OUT: Int32 = -3
+let TRL_MAIN_RUN_LOOP_NOT_RUNNING: Int32 = -4
 let TRL_UNSUPPORTED_SOURCE_LANGUAGE: Int32 = -10
 let TRL_UNSUPPORTED_TARGET_LANGUAGE: Int32 = -11
 let TRL_UNSUPPORTED_LANGUAGE_PAIRING: Int32 = -12
@@ -45,6 +46,7 @@ enum TRLBridgeError: Error, CustomStringConvertible {
     case invalidArgument(String)
     case unavailableOnThisMacOS(String)
     case timedOut(String)
+    case mainRunLoopNotRunning(String)
     case unknown(String)
 
     var description: String {
@@ -52,6 +54,7 @@ enum TRLBridgeError: Error, CustomStringConvertible {
         case let .invalidArgument(message),
             let .unavailableOnThisMacOS(message),
             let .timedOut(message),
+            let .mainRunLoopNotRunning(message),
             let .unknown(message):
             return message
         }
@@ -65,6 +68,8 @@ enum TRLBridgeError: Error, CustomStringConvertible {
             return TRL_UNAVAILABLE_ON_THIS_MACOS
         case .timedOut:
             return TRL_TIMED_OUT
+        case .mainRunLoopNotRunning:
+            return TRL_MAIN_RUN_LOOP_NOT_RUNNING
         case .unknown:
             return TRL_UNKNOWN
         }
@@ -133,7 +138,7 @@ func trlWait(
         return
     }
     if !probe.wasServiced {
-        throw TRLBridgeError.timedOut(
+        throw TRLBridgeError.mainRunLoopNotRunning(
             "Translation.framework needs the main thread to run its run loop, and the main " +
                 "queue was not serviced within \(Int(TRL_MAIN_QUEUE_GRACE_SECONDS)) seconds"
         )

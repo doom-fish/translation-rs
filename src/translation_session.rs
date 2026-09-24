@@ -274,7 +274,10 @@ impl TranslationBatchResponse {
         };
         if status != ffi::status::OK {
             let error = unsafe { error_from_status(status, err_msg) };
-            if !matches!(error, TranslationError::TimedOut(_)) {
+            if !matches!(
+                error,
+                TranslationError::TimedOut(_) | TranslationError::MainRunLoopNotRunning(_)
+            ) {
                 self.finished = true;
             }
             return Err(error);

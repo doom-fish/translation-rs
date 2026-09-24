@@ -14,6 +14,7 @@ pub enum TranslationError {
     UnavailableOnThisMacOS(String),
     /// The framework operation timed out.
     TimedOut(String),
+    MainRunLoopNotRunning(String),
     /// The source language is unsupported by Translation.framework.
     UnsupportedSourceLanguage(String),
     /// The target language is unsupported by Translation.framework.
@@ -52,6 +53,7 @@ impl TranslationError {
             Self::InvalidArgument(message)
             | Self::UnavailableOnThisMacOS(message)
             | Self::TimedOut(message)
+            | Self::MainRunLoopNotRunning(message)
             | Self::UnsupportedSourceLanguage(message)
             | Self::UnsupportedTargetLanguage(message)
             | Self::UnsupportedLanguagePairing(message)
@@ -74,6 +76,7 @@ impl TranslationError {
             ffi::status::INVALID_ARGUMENT => Self::InvalidArgument(message),
             ffi::status::UNAVAILABLE_ON_THIS_MACOS => Self::UnavailableOnThisMacOS(message),
             ffi::status::TIMED_OUT => Self::TimedOut(message),
+            ffi::status::MAIN_RUN_LOOP_NOT_RUNNING => Self::MainRunLoopNotRunning(message),
             ffi::status::UNSUPPORTED_SOURCE_LANGUAGE => Self::UnsupportedSourceLanguage(message),
             ffi::status::UNSUPPORTED_TARGET_LANGUAGE => Self::UnsupportedTargetLanguage(message),
             ffi::status::UNSUPPORTED_LANGUAGE_PAIRING => Self::UnsupportedLanguagePairing(message),
@@ -115,5 +118,34 @@ fn split_payload(message: &str) -> (&str, Option<&str>) {
             (description, Some(failure_reason))
         }
         _ => (message, None),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TranslationError;
+    use crate::ffi::status;
+
+    #[test]
+    fn statuses_map_to_typed_errors() {
+        let error = |code| TranslationError::from_status_parts(code, "message".to_owned(), None);
+        let message = || "message".to_owned();
+        assert_eq!(
+            error(status::TIMED_OUT),
+            TranslationError::TimedOut(message())
+        );
+        assert_eq!(
+            error(status::MAIN_RUN_LOOP_NOT_RUNNING),
+            TranslationError::MainRunLoopNotRunning(message())
+        );
+        assert_eq!(
+            error(status::NOT_INSTALLED),
+            TranslationError::NotInstalled(message())
+        );
+        assert_eq!(
+            error(status::UNSUPPORTED_LANGUAGE_PAIRING),
+            TranslationError::UnsupportedLanguagePairing(message())
+        );
+        assert_eq!(error(12345), TranslationError::Unknown(message()));
     }
 }

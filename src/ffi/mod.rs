@@ -155,6 +155,7 @@ pub mod status {
     pub const INVALID_ARGUMENT: i32 = -1;
     pub const UNAVAILABLE_ON_THIS_MACOS: i32 = -2;
     pub const TIMED_OUT: i32 = -3;
+    pub const MAIN_RUN_LOOP_NOT_RUNNING: i32 = -4;
     pub const UNSUPPORTED_SOURCE_LANGUAGE: i32 = -10;
     pub const UNSUPPORTED_TARGET_LANGUAGE: i32 = -11;
     pub const UNSUPPORTED_LANGUAGE_PAIRING: i32 = -12;

@@ -22,7 +22,9 @@ fn stream_after_a_timeout(started: &mpsc::Sender<()>) -> Result<Vec<String>, Tra
     let _ = started.send(());
     let mut sources = Vec::new();
     match first {
-        Err(TranslationError::TimedOut(message)) => assert!(message.contains("main thread")),
+        Err(TranslationError::MainRunLoopNotRunning(message)) => {
+            assert!(message.contains("main thread"));
+        }
         Ok(Some(response)) => sources.push(response.source_text().to_owned()),
         other => return other.map(|_| sources),
     }
