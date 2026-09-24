@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same iterator.
 - Dropping an async future cancels its Swift `Task` instead of letting the
   translation run to completion.
+- `build.rs` no longer adds the toolchain's `usr/lib/swift-5.5/macosx` directory to
+  the rpath. It shadowed the SDK's `libswift_Concurrency.tbd` for the whole binary
+  and, pointing into Xcode, never helped back-deployment.
 
 ### Changed
 
