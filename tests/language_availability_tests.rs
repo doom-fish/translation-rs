@@ -14,7 +14,7 @@ fn supported_languages_and_status_queries_round_trip() -> Result<(), Translation
     };
 
     let languages = availability.supported_language_objects()?;
-    assert!(!languages.is_empty());
+    assert_ne!(languages, [] as [translation::Language; 0]);
 
     let pair = LanguagePair::between("en", "es");
     let pair_status = availability.status_for_language_pair(&pair)?;

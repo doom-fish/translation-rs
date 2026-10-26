@@ -218,7 +218,7 @@ fn test_dropping_pending_futures_cancels_them() {
     }
 
     match block_on_with_main_run_loop(async_session.translate("Hello").expect("translate future")) {
-        Ok(response) => assert!(!response.target_text().is_empty()),
+        Ok(response) => assert_ne!(response.target_text(), ""),
         Err(error) => println!("INFO test_dropping_pending_futures_cancels_them: {error}"),
     }
     println!("PASS test_dropping_pending_futures_cancels_them");
